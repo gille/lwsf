@@ -7,7 +7,10 @@ LDFLAGS=-g
 
 ARCH=x86_32
 
-OBJS=lwsf.o arch.o arch_asm.o
+OBJS  = lwsf.o 
+OBJS += sockets.o
+OBJS += arch.o 
+OBJS += arch_asm.o
 
 ARFLAGS=-rc
 CFLAGS += -I../src/include

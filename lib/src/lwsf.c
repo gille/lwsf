@@ -210,7 +210,6 @@ void lwsf_start(void (*handler0)(void), void (*handler1)(void))
   /* Remove idle from blocked threads */
   LIST_POP_HEAD(&processes.blocked);
 
-  printd("idle %p\n");
 
   SWAP(&never_used, idle_thread->context);
 
@@ -218,6 +217,14 @@ void lwsf_start(void (*handler0)(void), void (*handler1)(void))
 }
 
 /* There's no point in receiving data if no thread is available to process it */
+
+msg_queue lwsf_msgq_create() {
+  int s= sizeof(struct list);
+  msg_queue m = malloc(s);
+  
+  m->head = m->tail = NULL; 
+  return m;
+}
 
 void print_state(){ 
   struct th *t;
