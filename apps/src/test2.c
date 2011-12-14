@@ -15,7 +15,7 @@ void echo(void *arg) {
   for(;;) {
     printd("Waiting for message\n");
     m = lwsf_msg_recv(NULL);
-    printd("Received message!\n");
+    printd("Received message! %p\n", m);
     lwsf_msg_send(&m, lwsf_msg_sender(m));
   }
 }
