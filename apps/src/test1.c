@@ -9,12 +9,12 @@
 #define printd(fmt, args...) { printf("[%s:%d] "fmt, __FILE__, __LINE__, ##args); }
 #endif
 
-struct th *p0;
-struct th *p1;
+struct lwsf_th *p0;
+struct lwsf_th *p1;
 
 void ping(void *arg) {
    for(;;) {
-     yield();
+     lwsf_thread_yield();
    }
  }
  
@@ -23,47 +23,26 @@ void pang(void *arg) {
   printd("head of pang\n");
   for(;;) {
     printd("pang\n");
-    yield();
+    lwsf_thread_yield();
     i++;
     printd("i=%d\n", i);
-    if(i == 1000000) {
-      exit(0);
-    }
-  }
-}
-
-void pang3(void *arg) {
-  int i=0;
-  printd("head of pang\n");
-  for(;;) {
-    printd("pang\n");
-    yield();
-    i++;
-    printd("i=%d\n", i);
-    if(i == 3) {
+    if(i == 10) {
       exit(0);
     }
   }
 }
 
 void pang2(void *arg) {
-  int i;
-
-  for(i=0; i < 100000; i++) {
-    new_thread("p", NULL, NULL); 
-  }
-  exit(0);
   for(;;) {
     printd("pange\n");
-    yield();
+    lwsf_thread_yield();
     //sleep(1);
   }
 }
 
 void handler1(void) {
-  p0 = new_thread("p0", pang, NULL);
-  p1 = new_thread("p1", pang2, NULL);
-  //new_thread("p2", pang, NULL);
+  p0 = lwsf_thread_new("p0", pang, NULL);
+  p1 = lwsf_thread_new("p1", pang2, NULL);
 }
 
 

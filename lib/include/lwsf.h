@@ -1,20 +1,26 @@
 #ifndef mange_g
 #define mange_g
 
-struct th;
-struct list;
-typedef struct list msg_queue;
+struct lwsf_th;
+struct lwsf_list;
+struct lwsf_msg_queue;
 
-struct th* new_thread(const char *name, void (*entry)(void*), void *arg);
+typedef struct lwsf_msg_queue lwsf_msg_queue;
+
 void lwsf_start(void (*handler0)(void), void (*handler1)(void));
-void yield(void);
-void stop_thread(struct th *t);
-void lwsf_msg_send(void **_m, struct th *t);
-void lwsf_msg_sendq(void **_m, msg_queue *t);
-void * lwsf_msg_recv(msg_queue * m);
-void *lwsf_msg_recv_try(msg_queue *m);
-struct th* lwsf_msg_sender(void *m);
+
+struct lwsf_th* lwsf_thread_new(const char *name, void (*entry)(void*), void *arg);
+void lwsf_thread_start(struct lwsf_th *t);
+void lwsf_thread_yield(void);
+void lwsf_thread_stop(struct lwsf_th *t);
+
+void lwsf_msg_send(void **_m, struct lwsf_th *t);
+void lwsf_msg_sendq(void **_m, lwsf_msg_queue *t);
+void * lwsf_msg_recv(lwsf_msg_queue * m);
+void *lwsf_msg_recv_try(lwsf_msg_queue *m);
+struct lwsf_th* lwsf_msg_sender(void *m);
 void *lwsf_msg_alloc(int size, int id);
-msg_queue* lwsf_msgq_create();
+
+lwsf_msg_queue* lwsf_msgq_create();
 
 #endif

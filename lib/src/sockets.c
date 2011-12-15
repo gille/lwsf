@@ -12,9 +12,9 @@ struct msg {
   int fd;
 };
 
-static msg_queue *acceptq;
-static msg_queue *readq;
-//static struct msg_queue *write_queue;
+static lwsf_msg_queue *acceptq;
+static lwsf_msg_queue *readq;
+//static struct lwsf_msg_queue *write_queue;
 
 static void * accept_server(void *arg) {
   fd_set r; 
@@ -72,7 +72,7 @@ void lwsf_close(int fd) {
 size_t lwsf_read(int fd, char *buf, size_t size) {
   void *m = NULL;
   lwsf_msg_sendq(&m, readq);
-  lwsf_msg_recv(NULL);
+  m = lwsf_msg_recv(NULL);
   return read(fd, buf, size); 
 }
 

@@ -1,6 +1,7 @@
 SILENT=@
 AR=$(SILENT)ar
 CC=$(SILENT)gcc
+RM=$(SILENT)rm
 CFLAGS  = -c
 CFLAGS += -O3
 CFLAGS += -g
