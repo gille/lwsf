@@ -64,8 +64,6 @@ struct lwsf_th *idle_thread;
 #define printd(fmt, args...) { printf("[%s:%d] "fmt, __FILE__, __LINE__, ##args); }
 #endif
 
-extern void SWAP(void *in, void *out); 
-
 void SCHEDULE(void) {
   struct lwsf_th *old, *new;
   printd("schedule called\n");
@@ -73,7 +71,7 @@ void SCHEDULE(void) {
     old = current; 
     new = idle_thread; 
     current = new; 
-    SWAP(old->context, new->context); 
+    lwsf_arch_thread_swap(old->context, new->context); 
   } else {
     if(lwsf_world.ready.head != (void*)current) {
       printd("swap to %s\n", ((struct lwsf_th*)LIST_GET_HEAD(&lwsf_world.ready))->name);
@@ -81,14 +79,14 @@ void SCHEDULE(void) {
       new = ((struct lwsf_th*)LIST_GET_HEAD(&lwsf_world.ready)); 
       current = new; 
       printd("swapping %p %p \n", old, new);
-      SWAP(old->context, new->context); 
+      lwsf_arch_thread_swap(old->context, new->context); 
     }
   }
 }
+
 void (*hook1)(void) = NULL;
 
-void thread_entry()
-{
+void lwsf_thread_entry(void) {
   static int first = 0;
   struct lwsf_th *th;
   
@@ -130,7 +128,7 @@ struct lwsf_th* lwsf_thread_new(const char *name, void (*entry)(void*), void *ar
   LIST_INSERT_TAIL(&lwsf_world.blocked, t);
   t->entry = entry;
   t->arg = arg; 
-  t->context = (void*)create_context(10*1000);
+  t->context = (void*)lwsf_arch_create_context(10*1000);
   t->type = THREAD_TYPE_LWSF;
   t->mailbox.messages.head = t->mailbox.messages.tail = NULL; 
   t->mailbox.blocked.head = t->mailbox.blocked.tail = NULL; 
@@ -139,14 +137,13 @@ struct lwsf_th* lwsf_thread_new(const char *name, void (*entry)(void*), void *ar
   return t;
 }
 
-void del_thread(struct lwsf_th *t) {	
+void lwsf_thread_delete(struct lwsf_th *t) {	
 	free(t->name);
 	LIST_REMOVE_ELEM(&lwsf_world.world, t);
 	
 }
 
-void lwsf_thread_start(struct lwsf_th *t) {
-	
+void lwsf_thread_start(struct lwsf_th *t) {	
 	t->state = STATE_READY;
 
 	LIST_REMOVE_ELEM(&lwsf_world.blocked, t);
@@ -203,7 +200,7 @@ void *lwsf_msg_recv_try(lwsf_msg_queue *m) {
   if(m->messages.head != NULL) {
     msg = LIST_GET_HEAD(&(m->messages));
     LIST_REMOVE_HEAD(&(m->messages));
-
+    
     return (msg+1); 
   } else {
     return NULL;
@@ -278,7 +275,7 @@ void lwsf_start(void (*handler0)(void), void (*handler1)(void))
   LIST_REMOVE_HEAD(&lwsf_world.blocked);
 
 
-  SWAP(&never_used, idle_thread->context);
+  lwsf_arch_thread_swap(&never_used, idle_thread->context);
 
   //never reached  SCHEDULE();
 }

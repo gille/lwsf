@@ -1,9 +1,9 @@
 #include <stdlib.h>
 
 #include "lwsf.h"
+#include "lwsf_internal.h"
 
-extern void thread_entry();
-void * create_context(int size) {
+void * lwsf_arch_create_context(int size) {
   unsigned long *t = malloc(7*4); 
   unsigned char *s = malloc(size);
   unsigned long *x;
@@ -12,7 +12,7 @@ void * create_context(int size) {
   s += size - 4;
   
   x = (unsigned long*)(s);
-  *(x) = (unsigned long)thread_entry; /* return address */
+  *(x) = (unsigned long)lwsf_thread_entry; /* return address */
   x--;
   *x = 0xBE; /* AX */ /* AX */
   //  x--;

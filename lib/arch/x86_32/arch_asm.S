@@ -1,5 +1,6 @@
-.globl SWAP
-SWAP:
+.globl lwsf_arch_thread_swap
+	
+lwsf_arch_thread_swap:
 	/* somehow the save status is screwed up.. */
 	push %eax
 
