@@ -14,6 +14,7 @@ ARCH=x86_32
 
 OBJS  = lwsf.o 
 OBJS += sockets.o
+OBJS += mem_cache.o
 OBJS += arch.o 
 OBJS += arch_asm.o
 

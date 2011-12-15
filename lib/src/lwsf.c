@@ -10,10 +10,14 @@
 #define THREAD_TYPE_LWSF   0
 #define THREAD_TYPE_SYSTEM 1
 
+
+#define STATE_RUNNING             0
 #define STATE_READY               1
-#define STATE_RUNNING             2
-#define STATE_BLOCKED             4
-#define STATE_BLOCKED_MESSAGE     8
+
+#define STATE_BLOCKED_MESSAGE     4
+#define STATE_BLOCKED             8
+
+#define STATE_STOPPED             16
 
 struct  lwsf_msg_queue {
   struct lwsf_list messages;
@@ -43,6 +47,7 @@ static struct lwsf_world {
 	struct lwsf_list running;
 	struct lwsf_list ready;
 	struct lwsf_list blocked;
+	struct lwsf_list stopped;
 	struct lwsf_list world;
 
 	struct lwsf_th *current;
@@ -84,17 +89,15 @@ void SCHEDULE(void) {
   }
 }
 
-void (*hook1)(void) = NULL;
-
 void lwsf_thread_entry(void) {
   static int first = 0;
   struct lwsf_th *th;
-  
+  void (*handler1)(void);
   if(first == 0) {
     first++;
-    
+    handler1 = (void*)current->entry; 
     //printd("calling hook1\n");
-    hook1();
+    handler1();
     
     while((th = LIST_GET_HEAD(&lwsf_world.blocked)) != NULL) {
       LIST_REMOVE_HEAD(&lwsf_world.blocked);
@@ -140,7 +143,7 @@ struct lwsf_th* lwsf_thread_new(const char *name, void (*entry)(void*), void *ar
 void lwsf_thread_delete(struct lwsf_th *t) {	
 	free(t->name);
 	LIST_REMOVE_ELEM(&lwsf_world.world, t);
-	
+	free(t);	
 }
 
 void lwsf_thread_start(struct lwsf_th *t) {	
@@ -232,14 +235,24 @@ struct lwsf_th* lwsf_msg_sender(void *m) {
   return msg->sender;
 }
 
-void stop_thread(struct lwsf_th *t) { 
+void lwsf_thread_stop(struct lwsf_th *t) { 
   if(t == current) {
     printd("stopping current thread\n");
     LIST_REMOVE_HEAD(&lwsf_world.ready); 
     LIST_INSERT_TAIL(&lwsf_world.blocked, t); 
     SCHEDULE();
   } else {
-    /* find the fucker */
+    if(t->state <= STATE_READY) {
+      LIST_REMOVE_ELEM(&lwsf_world.ready, t);
+      LIST_INSERT_TAIL(&lwsf_world.stopped, t);
+      t->state= STATE_STOPPED;
+    } else {
+      if(t->state <= STATE_BLOCKED) {
+	LIST_REMOVE_ELEM(&lwsf_world.blocked, t);
+	LIST_INSERT_TAIL(&lwsf_world.stopped, t);
+      }
+    }    
+    /* it's already stopped or blocked? */
   }
 }
 
@@ -252,14 +265,6 @@ void lwsf_thread_yield(void) {
     SCHEDULE();
   }
 }
- 
- 
-
-void add_fd() {
-}
-
-
-void read(){}
 
 void lwsf_start(void (*handler0)(void), void (*handler1)(void)) 
 {
@@ -267,8 +272,9 @@ void lwsf_start(void (*handler0)(void), void (*handler1)(void))
   void *never_used; 
   if(handler0)
     handler0();
-  hook1 = handler1;
+
   th = lwsf_thread_new("idle", NULL, NULL);
+  idle_thread->entry = (void*)handler1; 
   idle_thread = th;
   current = th;
   /* Remove idle from blocked threads */
