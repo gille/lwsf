@@ -304,7 +304,9 @@ lwsf_msg_queue* lwsf_msgq_create() {
   int s= sizeof(lwsf_msg_queue);
   lwsf_msg_queue *m = malloc(s);
   
-  memset(m, 0, sizeof(*m)); 
+  LIST_INIT(&m->messages);
+  LIST_INIT(&m->blocked);
+
   return m;
 }
 
