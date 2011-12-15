@@ -22,7 +22,7 @@ static void lwsf_mem_cache_grow(struct lwsf_mem_cache *c) {
 }
 
 
-lwsf_mem_cache * lwsf_cache_create(int block_size) {
+lwsf_mem_cache * lwsf_mem_cache_create(int block_size) {
   struct lwsf_mem_cache *c;
   int i;
   unsigned char *p; 
@@ -42,12 +42,13 @@ lwsf_mem_cache * lwsf_cache_create(int block_size) {
   return c;
 }
 
-void lwsf_cache_destroy(void) {
+void lwsf_mem_cache_destroy(struct lwsf_mem_cache *c) {
+  /* we can't destroy a cache right now... */
 }
 
 
 
-void *lwsf_cache_alloc(struct lwsf_mem_cache *c) {
+void *lwsf_mem_cache_alloc(struct lwsf_mem_cache *c) {
   unsigned long *r = (unsigned long*)(&c->free);
 
   if(r == NULL) {  
@@ -62,7 +63,7 @@ void *lwsf_cache_alloc(struct lwsf_mem_cache *c) {
   return (void*)&r[1];
 }
 
-void m_cache_free(void *m) {
+void lwsf_mem_cache_free(void *m) {
   unsigned long *p = m;
   struct lwsf_mem_cache *c;
   if(p != NULL) {
