@@ -63,10 +63,10 @@ int lwsf_mem_cache_destroy(struct lwsf_mem_cache *c) {
     struct lwsf_list_elem *le;
     /* we have all the memory, iterate through and destroy extra blocks */
     
-    for(le = c->mem; le != NULL; le = le->next) {
+    for(le = c->mem.head; le != NULL; le = le->next) {
       free(le);
     }
-    free(c);
+    //free(c); // This causes some major badness
     
     return 0;
   }

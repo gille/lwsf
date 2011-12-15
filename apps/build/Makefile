@@ -16,7 +16,7 @@ vpath %.c ../arch/$(ARCH)
 vpath %.S ../arch/$(ARCH)
 vpath %.c ../src
 
-APPS = test1 test2 test3
+APPS = test1 test2 test3 test4
 
 all: $(APPS)
 

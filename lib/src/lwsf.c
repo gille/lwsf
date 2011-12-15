@@ -93,6 +93,7 @@ void lwsf_thread_entry(void) {
   static int first = 0;
   struct lwsf_th *th;
   void (*handler1)(void);
+  printd("here\n");
   if(first == 0) {
     first++;
     handler1 = (void*)current->entry; 
@@ -274,13 +275,13 @@ void lwsf_start(void (*handler0)(void), void (*handler1)(void))
     handler0();
 
   th = lwsf_thread_new("idle", NULL, NULL);
-  idle_thread->entry = (void*)handler1; 
   idle_thread = th;
+  idle_thread->entry = (void*)handler1; 
   current = th;
   /* Remove idle from blocked threads */
   LIST_REMOVE_HEAD(&lwsf_world.blocked);
 
-
+  printd("swapping contexts\n");
   lwsf_arch_thread_swap(&never_used, idle_thread->context);
 
   //never reached  SCHEDULE();

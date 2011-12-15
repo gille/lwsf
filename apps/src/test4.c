@@ -12,7 +12,15 @@
 
 void ping(void *arg) {
   lwsf_mem_cache *m = lwsf_mem_cache_create(1000); 
+  int i;
 
+  for(i=0; i < 999; i++)
+    lwsf_mem_cache_alloc(m);
+
+  m = lwsf_mem_cache_create(1000); 
+  lwsf_mem_cache_free(lwsf_mem_cache_alloc(m));
+  exit(lwsf_mem_cache_destroy(m));
+  exit(0);
 }
 
 void handler1(void) {
