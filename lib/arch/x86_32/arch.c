@@ -4,15 +4,15 @@
 
 extern void thread_entry();
 void * create_context(int size) {
-  unsigned int *t = malloc(7*4); 
+  unsigned long *t = malloc(7*4); 
   unsigned char *s = malloc(size);
-  unsigned int *x;
+  unsigned long *x;
 
 
   s += size - 4;
   
-  x = (unsigned int*)(s);
-  *(x) = thread_entry; /* return address */
+  x = (unsigned long*)(s);
+  *(x) = (unsigned long)thread_entry; /* return address */
   x--;
   *x = 0xBE; /* AX */ /* AX */
   //  x--;
@@ -22,8 +22,8 @@ void * create_context(int size) {
   t[2] = 0; /* DX */
   t[3] = 0; /* SI */
   t[4] = 0; /* DI */
-  t[5] = x; /* SP */
-  t[6] = s+4; /* BP */
+  t[5] = (unsigned long)x; /* SP */
+  t[6] = (unsigned long)(s+4); /* BP */
 
   return t;    
 }

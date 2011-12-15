@@ -17,7 +17,7 @@ void echo(void *arg) {
     m = lwsf_msg_recv(NULL);
     printd("Received message! %p\n", m);
     printd("msg_no: %d\n", *m);
-    lwsf_msg_send(&m, lwsf_msg_sender(m));
+    lwsf_msg_send((void**)&m, lwsf_msg_sender(m));
   }
 }
 
@@ -28,7 +28,7 @@ void ping(void *arg) {
   m = lwsf_msg_alloc(10, 10);
   for(i=0; i < 5; i++) {
     printd("sent message %p\n", m);
-    lwsf_msg_send(&m, t);
+    lwsf_msg_send((void**)&m, t);
     m = lwsf_msg_recv(NULL);
     printd("Received message! %p\n", m);
     if(*m != 10) {

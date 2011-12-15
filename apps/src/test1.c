@@ -12,18 +12,7 @@
 struct th *p0;
 struct th *p1;
 
-void echo(void *arg) {
-  struct th *r;
-  void *m;
-  (void)arg;
-  for(;;) {
-    m = recv_msg(NULL);
-    r = sender(m);
-    send_msg(r, &m);
-  }
-}
- 
- void ping(void *arg) {
+void ping(void *arg) {
    for(;;) {
      yield();
    }

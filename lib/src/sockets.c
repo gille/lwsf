@@ -4,15 +4,17 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "lwsf_sockets.h"
+#include <unistd.h>
+#include <pthread.h>
 
 struct msg {
   uint32_t mid;
   int fd;
 };
 
-static struct msg_queue accept_queue;
-static struct msg_queue read_queue;
-static struct msg_queue write_queue;
+static msg_queue *acceptq;
+static msg_queue *readq;
+//static struct msg_queue *write_queue;
 
 static void * accept_server(void *arg) {
   fd_set r; 
@@ -25,11 +27,12 @@ static void * accept_server(void *arg) {
       /**/      
       
     }
-    m = (struct msg*)lwsf_receive_msg(NULL); 
+    m = (struct msg*)lwsf_msg_recv(acceptq); 
     if(m != NULL) {
       FD_SET(m->fd, &r);
     }
   }
+  return NULL;
 }
 
 static void * read_server(void *arg) {
@@ -41,22 +44,23 @@ static void * read_server(void *arg) {
   
   for(;;) {
     if(FD_ISSET(0, &r)) {
-      if (read(max+1, &r, 0, 0, 0) > 0) {
+      if (select(max+1, &r, 0, 0, 0) > 0) {
 	/**/
       }
     }
-    m = lwsf_receive_msg(NULL); 
+    m = (struct msg*)lwsf_msg_recv(NULL); 
     if(m != NULL) {
       FD_SET(m->fd, &r);
     }
   }
+  return NULL;
 }
 
 int lwsf_accept(int fd, struct sockaddr *sockaddr, size_t *size) {
   struct msg *m;
-  m = lwsf_alloc_msg(); 
-  //  lwsf_msg_send();
-  m = lwsf_receive_msg(NULL); 
+  m =(struct msg*) lwsf_msg_alloc(10, 10); 
+  //  lwsf_msg_sendq();
+  m = (struct msg*)lwsf_msg_recv(NULL); 
   return accept(fd, sockaddr, size); 
 }
 
@@ -66,8 +70,9 @@ void lwsf_close(int fd) {
 }
 
 size_t lwsf_read(int fd, char *buf, size_t size) {
-  lwsf_send();
-  lwsf_receive();
+  void *m = NULL;
+  lwsf_msg_sendq(&m, readq);
+  lwsf_msg_recv(NULL);
   return read(fd, buf, size); 
 }
 
@@ -80,7 +85,8 @@ void init_socket_servers() {
   pthread_t read_thread;
   pthread_t accept_thread;
   
-  msg_queue m = lwsf_msgq_create();
+  readq = lwsf_msgq_create();
+  acceptq = lwsf_msgq_create();
 
   pthread_create(&read_thread, NULL, read_server, NULL); 
   pthread_create(&accept_thread, NULL, accept_server, NULL); 

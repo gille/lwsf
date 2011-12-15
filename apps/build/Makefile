@@ -1,7 +1,7 @@
 SILENT=@
 AR=$(SILENT)ar
 CC=$(SILENT)gcc
-CFLAGS=-O3 -g
+CFLAGS=-O3 -g -Wall
 ASFLAGS=-Wa,-g
 LDFLAGS=-g
 

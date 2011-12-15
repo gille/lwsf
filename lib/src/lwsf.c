@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include "lwsf.h"
 
+#include "lwsf_internal.h"
+
 #define THREAD_TYPE_LWSF   0
 #define THREAD_TYPE_SYSTEM 1
 
@@ -138,8 +140,8 @@ void del_thread(struct th *t) {
 	
 }
 
-void start_thread() {
-	struct th *t;
+void start_thread(struct th *t) {
+	
 	t->state = STATE_RUNNING;
 
 	LIST_REMOVE_ELEM(&processes.blocked, t);
@@ -148,13 +150,19 @@ void start_thread() {
 	SCHEDULE(); 
 }
 
+void lwsf_msg_sendq(void **_m, msg_queue *dst) {
+}
+
 void lwsf_msg_send(void **_m, struct th *dst) {
 	struct lwsf_msg *m = *_m; 
 	*_m = NULL;
 	m--;
 	m->sender = current; 
-	LIST_INSERT_TAIL(&dst->mailbox, m);	
+
+	LIST_INSERT_TAIL(&(dst->mailbox), m);	
 	
+	printd("oooops\n");
+
 	if(dst->state == STATE_BLOCKED_MESSAGE) {
 	  printd("blocked!\n");
 	  LIST_PRINT(&processes.blocked);
@@ -168,35 +176,36 @@ void lwsf_msg_send(void **_m, struct th *dst) {
 	}
 }
 
-
-void * lwsf_msg_recv(msg_queue m) {
+void *lwsf_msg_recv_try(msg_queue *m) {
   struct lwsf_msg *msg;
 
   if(m == NULL) {
     m = &current->mailbox;
-    
-    /**/
-    if(m->head) {
-      printd("HEAD!\n");
-      LIST_REMOVE_HEAD(m);
-    } else {
-      printd("Remove from processes!\n");
-      LIST_REMOVE_HEAD(&processes.ready);
-      LIST_INSERT_TAIL(&processes.blocked, current); 
-      LIST_PRINT(&processes.blocked);
-      current->state = STATE_BLOCKED_MESSAGE;
-      SCHEDULE();
-      
-      printd("Got out!\n");
-      msg = LIST_GET_HEAD(m);
-      LIST_REMOVE_HEAD(m);
-     
-      return (msg+1); 
-    }
+  }    
+  /**/
+  if(m->head != NULL) {
+    msg = LIST_GET_HEAD(m);
+    LIST_REMOVE_HEAD(m);
+
+    return (msg+1); 
   } else {
-    printd("Ouch I don't support msg queues just yet\n");
-    exit(0);
+    return NULL;
   }
+}
+
+void * lwsf_msg_recv(msg_queue *m) {
+  struct lwsf_msg *msg;
+
+  /* blah? */
+  while((msg = lwsf_msg_recv_try(m)) == NULL) {
+    LIST_REMOVE_HEAD(&processes.ready);
+    LIST_INSERT_TAIL(&processes.blocked, current); 
+    LIST_PRINT(&processes.blocked);
+    current->state = STATE_BLOCKED_MESSAGE;
+    SCHEDULE();
+  } 
+  
+  return (msg); 
 }
 
 struct th* lwsf_msg_sender(void *m) { 
@@ -267,9 +276,9 @@ void *lwsf_msg_alloc(int size, int id) {
  return m;
 }
 
-msg_queue lwsf_msgq_create() {
+msg_queue* lwsf_msgq_create() {
   int s= sizeof(struct list);
-  msg_queue m = malloc(s);
+  msg_queue *m = malloc(s);
   
   m->head = m->tail = NULL; 
   return m;
