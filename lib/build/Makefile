@@ -22,7 +22,7 @@ vpath %.c ../src
 
 all: liblwsf.a
 
-liblwsf.a: $(OBJS)
+liblwsf.a: $(OBJS) ../src/include/list.h
 	$(AR) $(ARFLAGS) $@ $(OBJS)
 %.o: %.c
 	$(CC) $(CFLAGS) -o $@ $<

@@ -25,7 +25,7 @@ static void * accept_server(void *arg) {
       /**/      
       
     }
-    m = lwsf_receive_msg(NULL); 
+    m = (struct msg*)lwsf_receive_msg(NULL); 
     if(m != NULL) {
       FD_SET(m->fd, &r);
     }
@@ -54,6 +54,8 @@ static void * read_server(void *arg) {
 
 int lwsf_accept(int fd, struct sockaddr *sockaddr, size_t *size) {
   struct msg *m;
+  m = lwsf_alloc_msg(); 
+  //  lwsf_msg_send();
   m = lwsf_receive_msg(NULL); 
   return accept(fd, sockaddr, size); 
 }

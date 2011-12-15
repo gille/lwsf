@@ -75,8 +75,6 @@ void handler1(void) {
   p0 = new_thread("p0", pang, NULL);
   p1 = new_thread("p1", pang2, NULL);
   //new_thread("p2", pang, NULL);
-
-
 }
 
 

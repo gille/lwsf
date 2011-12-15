@@ -18,11 +18,11 @@ vpath %.c ../arch/$(ARCH)
 vpath %.S ../arch/$(ARCH)
 vpath %.c ../src
 
-APPS = test1
+APPS = test1 test2
 
-all: test1
+all: $(APPS)
 
-test1: test1.c
+%: %.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS) $(LIBS)
 
 %.o: %.c

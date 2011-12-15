@@ -11,11 +11,12 @@
 
 
 void echo(void *arg) {
-  void *m;
+  uint32_t *m;
   for(;;) {
     printd("Waiting for message\n");
     m = lwsf_msg_recv(NULL);
     printd("Received message! %p\n", m);
+    printd("msg_no: %d\n", *m);
     lwsf_msg_send(&m, lwsf_msg_sender(m));
   }
 }
@@ -26,8 +27,10 @@ void ping(void *arg) {
   uint32_t *m;
   m = lwsf_msg_alloc(10, 10);
   for(i=0; i < 5; i++) {
+    printd("sent message %p\n", m);
     lwsf_msg_send(&m, t);
     m = lwsf_msg_recv(NULL);
+    printd("Received message! %p\n", m);
     if(*m != 10) {
       printd("wrong message number\n");
       exit(1);

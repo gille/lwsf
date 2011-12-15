@@ -2,7 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
 #include "lwsf.h"
+
+#define THREAD_TYPE_LWSF   0
+#define THREAD_TYPE_SYSTEM 1
+
+#define STATE_READY               1
+#define STATE_RUNNING             2
+#define STATE_BLOCKED             4
+#define STATE_BLOCKED_MESSAGE     8
 
 
 struct th {
@@ -11,6 +20,7 @@ struct th {
   /* 12 */
   struct list_elem n2;
   /* 24 */
+  int type;
   /**/
   int state;
   /* 28 */
@@ -23,8 +33,6 @@ struct th {
   void *arg;
 };
 
-
-
 static struct processes {
 	struct list running;
 	struct list ready;
@@ -34,18 +42,15 @@ static struct processes {
 	struct th *current;
 } processes;
 
-struct msg {
-	struct th *sender;
-	unsigned long aligner;/* fixme */
-	unsigned char data[1];
+struct lwsf_msg {
+  struct list_elem n;
+  struct th *sender;
+  unsigned long aligner;/* fixme */
+  unsigned char data[1];
 };
 
 struct th *current;
 struct th *idle_thread;
-
-#define  STOPPED 0
-#define  RUNNING 1
-#define  BLOCKED_MESSAGE 2
 
 #if 0
 #define printd(fmt, args...)
@@ -88,7 +93,7 @@ void thread_entry()
     hook1();
     
     while((th = LIST_GET_HEAD(&processes.blocked)) != NULL) {
-      LIST_POP_HEAD(&processes.blocked);
+      LIST_REMOVE_HEAD(&processes.blocked);
 	LIST_INSERT_TAIL(&processes.ready, th);
 	//printd("Thread %s made ready\n", th->name);
     }
@@ -110,7 +115,7 @@ struct th* new_thread(const char *name, void (*entry)(void*), void *arg) {
   struct th *t; 
   struct list_elem *l;
   t = malloc(sizeof(*t));
-  t->state = STOPPED;
+
   l = (struct list_elem*)t;
   l->data = t; 
   (l+1)->data = t; 
@@ -119,20 +124,23 @@ struct th* new_thread(const char *name, void (*entry)(void*), void *arg) {
   LIST_INSERT_TAIL(&processes.blocked, t);
   t->entry = entry;
   t->arg = arg; 
-  t->context = create_context(10*1000);
+  t->context = (void*)create_context(10*1000);
+  t->type = THREAD_TYPE_LWSF;
+  t->mailbox.head = t->mailbox.tail = NULL; 
+  t->state = STATE_BLOCKED;
   printd("%s [%p] context created at %p\n", t->name, t, t->context);
   return t;
 }
 
 void del_thread(struct th *t) {	
 	free(t->name);
-	LIST_REMOVE_ELEM(processes.world, t);
+	LIST_REMOVE_ELEM(&processes.world, t);
 	
 }
 
 void start_thread() {
 	struct th *t;
-	t->state = RUNNING;
+	t->state = STATE_RUNNING;
 
 	LIST_REMOVE_ELEM(&processes.blocked, t);
 	LIST_INSERT_TAIL(&processes.ready, t);
@@ -140,30 +148,59 @@ void start_thread() {
 	SCHEDULE(); 
 }
 
-void send_msg(struct th *dst, void **_m) {
-	struct msg *m = *_m;
+void lwsf_msg_send(void **_m, struct th *dst) {
+	struct lwsf_msg *m = *_m; 
 	*_m = NULL;
 	m--;
+	m->sender = current; 
+	LIST_INSERT_TAIL(&dst->mailbox, m);	
 	
-	LIST_INSERT_TAIL(&dst->mailbox, m);
-	/*
-	SCHEDULE();
-	*/
-}
+	if(dst->state == STATE_BLOCKED_MESSAGE) {
+	  printd("blocked!\n");
+	  LIST_PRINT(&processes.blocked);
+	  printd("removed\n");
+	  LIST_REMOVE_ELEM(&processes.blocked, dst); 
+	  LIST_PRINT(&processes.blocked);
+	  LIST_INSERT_TAIL(&processes.ready, dst);
+	  SCHEDULE();
 
-
-void * recv_msg(msg_queue m) {
-	if(m == NULL) {}
-	/**/
-	if(current->mailbox.head) {
-	  LIST_REMOVE_HEAD(&current->mailbox);
-	} else {
-		LIST_REMOVE_HEAD(&processes.ready);
+	  /* FIXME */
 	}
 }
 
-struct th* sender(void *m) { 
-  struct msg *msg = m;
+
+void * lwsf_msg_recv(msg_queue m) {
+  struct lwsf_msg *msg;
+
+  if(m == NULL) {
+    m = &current->mailbox;
+    
+    /**/
+    if(m->head) {
+      printd("HEAD!\n");
+      LIST_REMOVE_HEAD(m);
+    } else {
+      printd("Remove from processes!\n");
+      LIST_REMOVE_HEAD(&processes.ready);
+      LIST_INSERT_TAIL(&processes.blocked, current); 
+      LIST_PRINT(&processes.blocked);
+      current->state = STATE_BLOCKED_MESSAGE;
+      SCHEDULE();
+      
+      printd("Got out!\n");
+      msg = LIST_GET_HEAD(m);
+      LIST_REMOVE_HEAD(m);
+     
+      return (msg+1); 
+    }
+  } else {
+    printd("Ouch I don't support msg queues just yet\n");
+    exit(0);
+  }
+}
+
+struct th* lwsf_msg_sender(void *m) { 
+  struct lwsf_msg *msg = m;
   msg--;
   return msg->sender;
 }
@@ -171,7 +208,7 @@ struct th* sender(void *m) {
 void stop_thread(struct th *t) { 
   if(t == current) {
     printd("stopping current thread\n");
-    LIST_POP_HEAD(&processes.ready); 
+    LIST_REMOVE_HEAD(&processes.ready); 
     LIST_INSERT_TAIL(&processes.blocked, t); 
     SCHEDULE();
   } else {
@@ -182,7 +219,7 @@ void stop_thread(struct th *t) {
 void yield(void) {
   printd("yield called\n");
   //  LIST_REMOVE_ELEM(&processes.ready, current);
-  LIST_POP_HEAD(&processes.ready); 
+  LIST_REMOVE_HEAD(&processes.ready); 
   LIST_INSERT_TAIL(&processes.ready, current);
   if(current != (struct th*)(processes.ready.head)){ 
     SCHEDULE();
@@ -191,7 +228,7 @@ void yield(void) {
  
  
 
- add_fd() {
+void add_fd() {
 }
 
 
@@ -208,7 +245,7 @@ void lwsf_start(void (*handler0)(void), void (*handler1)(void))
   idle_thread = th;
   current = th;
   /* Remove idle from blocked threads */
-  LIST_POP_HEAD(&processes.blocked);
+  LIST_REMOVE_HEAD(&processes.blocked);
 
 
   SWAP(&never_used, idle_thread->context);
@@ -217,6 +254,18 @@ void lwsf_start(void (*handler0)(void), void (*handler1)(void))
 }
 
 /* There's no point in receiving data if no thread is available to process it */
+
+void *lwsf_msg_alloc(int size, int id) {
+  uint32_t *idp;
+  struct lwsf_msg *m = (struct lwsf_msg*)malloc(sizeof(struct lwsf_msg) + size); 
+  m->sender = NULL;
+  m->n.data = m;
+  m++;
+  idp = (uint32_t*)m;
+ *idp = id;
+
+ return m;
+}
 
 msg_queue lwsf_msgq_create() {
   int s= sizeof(struct list);
@@ -228,7 +277,7 @@ msg_queue lwsf_msgq_create() {
 
 void print_state(){ 
   struct th *t;
-  for(t = processes.world.head; t != NULL; t = t->n2.next) {
+  for(t = (struct th*)processes.world.head; t != NULL; t = (struct th*)t->n2.next) {
     printd("process %s\n", t->name);
   }
 }
