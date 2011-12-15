@@ -1,66 +1,75 @@
 #include "list.h"
+#include "lwsf_mem_cache.h"
 
-struct cache {
-  struct list free; 
+#include <stdlib.h>
+
+struct lwsf_mem_cache {
+  struct lwsf_list free; 
   int block_size; 
 };
 
+#define BLOCKS 1000
 
-static void m_cache_grow(struct cache *c) {
+static void lwsf_mem_cache_grow(struct lwsf_mem_cache *c) {
   unsigned char *p; 
+  int i;
+
   p = malloc(c->block_size*BLOCKS); 
-  for(i=0; i < blocks; i++) {
-    LIST_INSERT_TAIL(l, p);
-    p += block_size;
+  for(i=0; i < BLOCKS; i++) {
+    LIST_INSERT_TAIL(&c->free, p);
+    p += c->block_size;
   }
 }
 
-#define BLOCKS 1000
-void * m_cache_create(int block_size) {
-  struct cache *c;
+
+lwsf_mem_cache * lwsf_cache_create(int block_size) {
+  struct lwsf_mem_cache *c;
   int i;
   unsigned char *p; 
 
   block_size += sizeof (unsigned long);
-  c= malloc(block_size*BLOCKS + struct cache); 
+  c= malloc(block_size*BLOCKS + sizeof(struct lwsf_mem_cache)); 
   if(c == NULL) {
     return NULL;
   }
   c->block_size = block_size;
-  p = ++c; 
+  p = (unsigned char*)(++c); 
   LIST_INIT(&c->free);
-  for(i=0; i < blocks; i++) {
-    LIST_INSERT_TAIL(l, p);
+  for(i=0; i < BLOCKS; i++) {
+    LIST_INSERT_TAIL(&c->free, p);
     p += block_size;
   }
+  return c;
 }
 
-void m_cache_destroy() {
+void lwsf_cache_destroy(void) {
 }
 
 
 
-void *m_cache_alloc(struct cache *c) {
-  unsigned long *r = (unsigned long*)LIST_GET_HEAD(&c->free);
+void *lwsf_cache_alloc(struct lwsf_mem_cache *c) {
+  unsigned long *r = (unsigned long*)(&c->free);
 
   if(r == NULL) {  
-    m_cache_grow(c); 
-    r = (unsigned long*)LIST_GET_HEAD(&c->free);
+    lwsf_mem_cache_grow(c); 
+    r = (unsigned long*)(&c->free.head);    
   }
 
-  LIST_POP_HEAD(&c->free);
+  LIST_REMOVE_HEAD(&c->free);
 
-  r[0] = c;
+  r[0] = (unsigned long)c;
 
   return (void*)&r[1];
 }
 
 void m_cache_free(void *m) {
   unsigned long *p = m;
-  struct cache *c;
+  struct lwsf_mem_cache *c;
   if(p != NULL) {
-    c=(p-1);
+    p--;
+    c=(struct lwsf_mem_cache*)(p);
+  
+    LIST_INSERT_TAIL(&c->free, p); 
   }
-  LIST_ADD_TAIL(&c->free, p); 
 }
 
