@@ -6,9 +6,6 @@ CFLAGS=-O3 -g -Wall
 ASFLAGS=-Wa,-g
 LDFLAGS=-g
 
-ARCH=x86_32
-
-ARFLAGS=-rc
 CFLAGS += -I../src/include
 CFLAGS += -I../include
 CFLAGS += -I../../lib/include
