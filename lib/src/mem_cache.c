@@ -46,13 +46,15 @@ lwsf_mem_cache * lwsf_mem_cache_create(int block_size) {
   c->block_size = block_size;
   c->freed = BLOCKS;
   c->blocks = BLOCKS;
-  p = (unsigned char*)(++c); 
   LIST_INIT(&c->free);
   LIST_INIT(&c->mem);
+
+  p = (unsigned char*)(c+1); 
   for(i=0; i < BLOCKS; i++) {
     LIST_INSERT_TAIL(&c->free, p);
     p += block_size;
   }
+
   return c;
 }
 
@@ -66,7 +68,7 @@ int lwsf_mem_cache_destroy(struct lwsf_mem_cache *c) {
     for(le = c->mem.head; le != NULL; le = le->next) {
       free(le);
     }
-    //free(c); // This causes some major badness
+    free(c); // This causes some major badness
     
     return 0;
   }
@@ -77,14 +79,13 @@ int lwsf_mem_cache_destroy(struct lwsf_mem_cache *c) {
 
 
 void *lwsf_mem_cache_alloc(struct lwsf_mem_cache *c) {
-  unsigned long *r = (unsigned long*)(&c->free);
+  unsigned long *r = (unsigned long*)(&(c->free));
 
   if(r == NULL) {  
     lwsf_mem_cache_grow(c); 
-    r = (unsigned long*)(&c->free.head);    
+    r = (unsigned long*)(&(c->free.head));
   }
-
-  LIST_REMOVE_HEAD(&c->free);
+  LIST_REMOVE_HEAD(&(c->free));
   c->freed--;
   r[0] = (unsigned long)c;
 
@@ -99,7 +100,7 @@ void lwsf_mem_cache_free(void *m) {
     p--;
     c=(struct lwsf_mem_cache*)(p);
     c->freed++;
-    LIST_INSERT_TAIL(&c->free, p); 
+    LIST_INSERT_HEAD(&c->free, p); 
   }
 }
 

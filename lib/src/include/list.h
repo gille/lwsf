@@ -27,8 +27,8 @@ struct lwsf_list {
 } while(0)
 
 #define LIST_INSERT_HEAD(l,n) do {                 \
-  (n)->next = (l)->head;                           \
-  (struct lwsf_list_elem*)(n)->prev = NULL;		   \
+  ((struct lwsf_list_elem*)(n))->next = (l)->head;	   \
+  ((struct lwsf_list_elem*)(n))->prev = NULL;		   \
   (l)->head = (struct lwsf_list_elem*)(n);              \
 } while(0)
 

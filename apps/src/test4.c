@@ -18,8 +18,27 @@ void ping(void *arg) {
     lwsf_mem_cache_alloc(m);
 
   m = lwsf_mem_cache_create(1000); 
+  lwsf_mem_cache_destroy(m);
+
+  m = lwsf_mem_cache_create(1000); 
   lwsf_mem_cache_free(lwsf_mem_cache_alloc(m));
-  exit(lwsf_mem_cache_destroy(m));
+  lwsf_mem_cache_destroy(m);
+  m = lwsf_mem_cache_create(1000); 
+  {
+    unsigned long p[2000];
+    int i;
+    for(i=0; i < 2000; i++) {
+      p[i] = (unsigned long)lwsf_mem_cache_alloc(m);
+    }
+    for(i=0; i < 1999; i++) {
+      lwsf_mem_cache_free((void*)p[i]);
+    }
+    if(lwsf_mem_cache_destroy(m) == 0)
+      exit(-1);
+    lwsf_mem_cache_free((void*)p[i]);
+    printf("de-allocated 2000 things\n");
+    exit(lwsf_mem_cache_destroy(m));
+  }
   exit(0);
 }
 

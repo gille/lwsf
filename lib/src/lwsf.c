@@ -51,6 +51,9 @@ static struct lwsf_world {
 	struct lwsf_list world;
 
 	struct lwsf_th *current;
+
+  /* FIXME */
+  int orig_state[16];
 } lwsf_world;
 
 struct lwsf_msg {
@@ -89,34 +92,36 @@ void SCHEDULE(void) {
   }
 }
 
-void lwsf_thread_entry(void) {
-  static int first = 0;
+void lwsf_idle_thread(void * arg) {
   struct lwsf_th *th;
-  void (*handler1)(void);
-  printd("here\n");
-  if(first == 0) {
-    first++;
-    handler1 = (void*)current->entry; 
-    //printd("calling hook1\n");
-    handler1();
-    
-    while((th = LIST_GET_HEAD(&lwsf_world.blocked)) != NULL) {
-      LIST_REMOVE_HEAD(&lwsf_world.blocked);
-	LIST_INSERT_TAIL(&lwsf_world.ready, th);
-	//printd("Thread %s made ready\n", th->name);
+  void (*handler1)(void) = arg;
+
+  handler1(); 
+  
+  while((th = LIST_GET_HEAD(&lwsf_world.blocked)) != NULL) {
+    LIST_REMOVE_HEAD(&lwsf_world.blocked);
+    LIST_INSERT_TAIL(&lwsf_world.ready, th);
+    //printd("Thread %s made ready\n", th->name);
+  }
+  SCHEDULE();
+  for(;;) {
+    if(lwsf_world.world.head == lwsf_world.world.tail) {
+      /* No processes exist! */
+      printf("I'm out of here!\n");
+      lwsf_arch_thread_swap(idle_thread->context, lwsf_world.orig_state);
     }
-    SCHEDULE();
-    /* this is now the idle loop */
-    for(;;) {
-      printf("IN IDLE!\n");
-      exit(1);
-      //sleep(1);
-      SCHEDULE();
-    }
-  } 
+    printf("IN IDLE!\n");
+    exit(1);
+    //sleep(1);
+    SCHEDULE();        
+  }
+}
+
+void lwsf_thread_entry(void) {
   printd("calling entry point\n");
   current->entry(current->arg);
-  /* kill_thread(); */
+  lwsf_thread_kill(current);
+  /* never reached */
 }
 
 struct lwsf_th* lwsf_thread_new(const char *name, void (*entry)(void*), void *arg) {
@@ -142,9 +147,24 @@ struct lwsf_th* lwsf_thread_new(const char *name, void (*entry)(void*), void *ar
 }
 
 void lwsf_thread_delete(struct lwsf_th *t) {	
+	LIST_REMOVE_ELEM(&lwsf_world.world, &t->n2);
 	free(t->name);
-	LIST_REMOVE_ELEM(&lwsf_world.world, t);
 	free(t);	
+}
+
+void lwsf_thread_kill(struct lwsf_th *t) {
+  if(t == current) {
+    LIST_REMOVE_ELEM(&lwsf_world.ready, t);
+  } else {
+    exit(-1);
+  }
+  LIST_REMOVE_ELEM(&lwsf_world.world, &(t->n2));
+  free(t->name);
+  free(t);
+
+  /* FIXME: Free context! */
+  SCHEDULE();
+  
 }
 
 void lwsf_thread_start(struct lwsf_th *t) {	
@@ -184,6 +204,7 @@ void lwsf_msg_send(void **_m, struct lwsf_th *dst) {
 	if(dst->state == STATE_BLOCKED_MESSAGE) {
 	  printd("blocked!\n");
 	  LIST_PRINT(&lwsf_world.blocked);
+	  
 	  printd("removed\n");
 	  LIST_REMOVE_ELEM(&lwsf_world.blocked, dst); 
 	  LIST_PRINT(&lwsf_world.blocked);
@@ -269,22 +290,19 @@ void lwsf_thread_yield(void) {
 
 void lwsf_start(void (*handler0)(void), void (*handler1)(void)) 
 {
-  struct lwsf_th *th;
-  void *never_used; 
   if(handler0)
     handler0();
 
-  th = lwsf_thread_new("idle", NULL, NULL);
-  idle_thread = th;
-  idle_thread->entry = (void*)handler1; 
-  current = th;
+  idle_thread = lwsf_thread_new("idle", lwsf_idle_thread, handler1);
+  current = idle_thread;
   /* Remove idle from blocked threads */
   LIST_REMOVE_HEAD(&lwsf_world.blocked);
 
   printd("swapping contexts\n");
-  lwsf_arch_thread_swap(&never_used, idle_thread->context);
-
-  //never reached  SCHEDULE();
+  lwsf_arch_thread_swap(lwsf_world.orig_state, idle_thread->context);
+  lwsf_thread_delete(idle_thread);
+  LIST_PRINT(&lwsf_world.world);
+  idle_thread = NULL;
 }
 
 /* There's no point in receiving data if no thread is available to process it */
