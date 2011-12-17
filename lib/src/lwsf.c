@@ -129,39 +129,67 @@ void lwsf_thread_entry(void) {
   /* never reached */
 }
 
-struct lwsf_th* lwsf_thread_new(const char *name, void (*entry)(void*), void *arg) {
+struct lwsf_th *lwsf_thread_internal_new(const char *name, int type) {
   struct lwsf_th *t; 
   struct lwsf_list_elem *l;
-  int stack_size = 100*1000;
-  void *stack;
 
   t = malloc(sizeof(*t));
   if(t == NULL) 
     goto out;
-  stack = malloc(stack_size);
-  if(stack == NULL) 
-    goto out_stack;
-  l = (struct lwsf_list_elem*)t;
-  l->data = t; 
-  (l+1)->data = t; 
+
   t->name = strdup(name);
   if(t->name == NULL) 
     goto out_name;
+  l = (struct lwsf_list_elem*)t;
+  l->data = t; 
+  (l+1)->data = t; 
+
   LIST_INSERT_TAIL(&lwsf_world.world, (l+1));
+  LIST_INIT(&t->mailbox.messages);
+  LIST_INIT(&t->mailbox.blocked);
+
+  t->type = type;
+
+  return t;
+ out_name:
+  free(t);
+ out:
+  return NULL;
+}
+
+struct lwsf_th *lwsf_sys_thread_new(const char *name) {
+  struct lwsf_th *t = lwsf_thread_internal_new(name, THREAD_TYPE_SYSTEM); 
+  if(t == NULL) 
+    return NULL;
+    
+  t->stack = NULL; 
+  t->arg = NULL;
+  t->entry = NULL;
+  t->state = STATE_RUNNING;
+  return t;
+}
+
+struct lwsf_th* lwsf_thread_new(const char *name, void (*entry)(void*), void *arg) {
+  struct lwsf_th *t; 
+  int stack_size = 100*1000;
+  void *stack;
+
+  t = lwsf_thread_internal_new(name, THREAD_TYPE_LWSF);
+  if(t == NULL)
+    goto out; 
+  stack = malloc(stack_size);
+  if(stack == NULL) 
+    goto out_stack;
   LIST_INSERT_TAIL(&lwsf_world.blocked, t);
+
   t->entry = entry;
   t->arg = arg; 
   lwsf_arch_create_context(t->context, stack, stack_size);
   t->stack = stack;
-  t->type = THREAD_TYPE_LWSF;
-  t->mailbox.messages.head = t->mailbox.messages.tail = NULL; 
-  t->mailbox.blocked.head = t->mailbox.blocked.tail = NULL; 
   t->state = STATE_BLOCKED;
   printd("%s [%p] context created at %p\n", t->name, t, t->context);
   return t;
 
- out_name:
-  free(stack);
  out_stack:
   free(t);
  out:
@@ -171,7 +199,8 @@ struct lwsf_th* lwsf_thread_new(const char *name, void (*entry)(void*), void *ar
 void lwsf_thread_delete(struct lwsf_th *t) {	
   LIST_REMOVE_ELEM(&lwsf_world.world, &t->n2);
   free(t->name);
-  free(t->stack);
+  if(t->stack)
+    free(t->stack);
   free(t);	
 }
 
