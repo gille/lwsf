@@ -157,7 +157,7 @@ struct lwsf_th *lwsf_thread_internal_new(const char *name, int type) {
   return NULL;
 }
 
-struct lwsf_th *lwsf_sys_thread_new(const char *name) {
+struct lwsf_th *lwsf_thread_sys_new(const char *name) {
   struct lwsf_th *t = lwsf_thread_internal_new(name, THREAD_TYPE_SYSTEM); 
   if(t == NULL) 
     return NULL;
