@@ -1,3 +1,5 @@
+#include <assert.h>
+
 #include "list.h"
 #include <stdlib.h>
 #include <string.h>
@@ -6,6 +8,7 @@
 #include "lwsf.h"
 
 #include "lwsf_internal.h"
+#include "arch_internal.h"
 
 #define THREAD_TYPE_LWSF   0
 #define THREAD_TYPE_SYSTEM 1
@@ -36,7 +39,9 @@ struct lwsf_th {
   /* 28 */
   char *name;
   /* 32 */
-  void *context; 
+  void *stack;
+
+  unsigned char context[LWSF_ARCH_CONTEXT_SIZE];
   lwsf_msg_queue mailbox;
 
   void (*entry)(void *);
@@ -127,28 +132,46 @@ void lwsf_thread_entry(void) {
 struct lwsf_th* lwsf_thread_new(const char *name, void (*entry)(void*), void *arg) {
   struct lwsf_th *t; 
   struct lwsf_list_elem *l;
-  t = malloc(sizeof(*t));
+  int stack_size = 100*1000;
+  void *stack;
 
+  t = malloc(sizeof(*t));
+  if(t == NULL) 
+    goto out;
+  stack = malloc(stack_size);
+  if(stack == NULL) 
+    goto out_stack;
   l = (struct lwsf_list_elem*)t;
   l->data = t; 
   (l+1)->data = t; 
   t->name = strdup(name);
+  if(t->name == NULL) 
+    goto out_name;
   LIST_INSERT_TAIL(&lwsf_world.world, (l+1));
   LIST_INSERT_TAIL(&lwsf_world.blocked, t);
   t->entry = entry;
   t->arg = arg; 
-  t->context = (void*)lwsf_arch_create_context(10*1000);
+  lwsf_arch_create_context(t->context, stack, stack_size);
+  t->stack = stack;
   t->type = THREAD_TYPE_LWSF;
   t->mailbox.messages.head = t->mailbox.messages.tail = NULL; 
   t->mailbox.blocked.head = t->mailbox.blocked.tail = NULL; 
   t->state = STATE_BLOCKED;
   printd("%s [%p] context created at %p\n", t->name, t, t->context);
   return t;
+
+ out_name:
+  free(stack);
+ out_stack:
+  free(t);
+ out:
+  return NULL;
 }
 
 void lwsf_thread_delete(struct lwsf_th *t) {	
 	LIST_REMOVE_ELEM(&lwsf_world.world, &t->n2);
 	free(t->name);
+	free(t->stack);
 	free(t);	
 }
 
@@ -294,6 +317,7 @@ void lwsf_start(void (*handler0)(void), void (*handler1)(void))
     handler0();
 
   idle_thread = lwsf_thread_new("idle", lwsf_idle_thread, handler1);
+  assert(idle_thread != NULL);
   current = idle_thread;
   /* Remove idle from blocked threads */
   LIST_REMOVE_HEAD(&lwsf_world.blocked);

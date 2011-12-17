@@ -21,6 +21,7 @@ OBJS += arch_asm.o
 ARFLAGS=-rc
 CFLAGS += -I../src/include
 CFLAGS += -I../include
+CFLAGS += -I../arch/$(ARCH)/
 
 vpath %.c ../arch/$(ARCH)
 vpath %.S ../arch/$(ARCH)
