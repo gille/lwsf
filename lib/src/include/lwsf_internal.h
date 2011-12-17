@@ -6,5 +6,5 @@ extern void lwsf_arch_thread_swap(void *out, void *in);
 extern void lwsf_thread_entry(void);
 
 extern void lwsf_thread_kill(struct lwsf_th *t);
-extern struct th* lwsf_thread_sys_new(const char *name);
+extern struct lwsf_th* lwsf_thread_sys_new(const char *name);
 #endif
