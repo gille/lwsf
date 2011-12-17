@@ -169,10 +169,10 @@ struct lwsf_th* lwsf_thread_new(const char *name, void (*entry)(void*), void *ar
 }
 
 void lwsf_thread_delete(struct lwsf_th *t) {	
-	LIST_REMOVE_ELEM(&lwsf_world.world, &t->n2);
-	free(t->name);
-	free(t->stack);
-	free(t);	
+  LIST_REMOVE_ELEM(&lwsf_world.world, &t->n2);
+  free(t->name);
+  free(t->stack);
+  free(t);	
 }
 
 void lwsf_thread_kill(struct lwsf_th *t) {
@@ -181,9 +181,8 @@ void lwsf_thread_kill(struct lwsf_th *t) {
   } else {
     exit(-1);
   }
-  LIST_REMOVE_ELEM(&lwsf_world.world, &(t->n2));
-  free(t->name);
-  free(t);
+  
+  lwsf_thread_delete(t);
 
   /* FIXME: Free context! */
   SCHEDULE();
@@ -191,12 +190,12 @@ void lwsf_thread_kill(struct lwsf_th *t) {
 }
 
 void lwsf_thread_start(struct lwsf_th *t) {	
-	t->state = STATE_READY;
-
-	LIST_REMOVE_ELEM(&lwsf_world.blocked, t);
-	LIST_INSERT_TAIL(&lwsf_world.ready, t);
-
-	SCHEDULE(); 
+  t->state = STATE_READY;
+  
+  LIST_REMOVE_ELEM(&lwsf_world.blocked, t);
+  LIST_INSERT_TAIL(&lwsf_world.ready, t);
+  
+  SCHEDULE(); 
 }
 
 void lwsf_msg_sendq(void **_m, lwsf_msg_queue *dst) {
