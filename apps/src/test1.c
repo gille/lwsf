@@ -41,8 +41,11 @@ void pang2(void *arg) {
 }
 
 void handler1(void) {
-  p0 = lwsf_thread_new("p0", pang, NULL);
-  p1 = lwsf_thread_new("p1", pang2, NULL);
+    int i; 
+    for(i=0; i < 500000; i++) 
+	p0 = lwsf_thread_new("p0", pang, NULL);
+    printf("Created %d threads!\n", i);
+    exit(0);
 }
 
 

@@ -10,10 +10,13 @@
 #define printd(fmt, args...) { printf("[%s:%d] "fmt, __FILE__, __LINE__, ##args); }
 #endif
 
-#define HACKY_SACKERS 10
-struct lwsf_th *hackysackers[HACKY_SACKERS];
+int HACKY_SACKERS=10;
+
+struct lwsf_th **hackysackers; 
 
 #define HACKY_SACK 0xBABE
+#define LOOPS 100
+
 struct hacky_msg {
     uint32_t id;
     uint32_t from;
@@ -21,12 +24,21 @@ struct hacky_msg {
 
 void hackysack(void *arg) {
     uint32_t id = (uint32_t)arg;
-    printf("I am thread %d\n", id);
-    for(;;) {
-	lwsf_thread_yield();
-	printf("calling exit!\n");
-	exit(0);
+    int i;
+    struct hacky_msg *msg;
+    int to;
+    for(i=0; i < LOOPS; i++) {
+	msg = lwsf_msg_recv(NULL);
+	//printf("I am thread %d got the ball from %d\n", id, msg->from);
+	do { 
+	    to = rand() % HACKY_SACKERS; 
+	} while (to == id); 
+	msg->from = id; 
+	//printf("Thread %d throw the ball to %d\n", id, to);
+	lwsf_msg_send((void**)&msg, hackysackers[to]);       
     }
+    printf("I'm done!\n");
+    exit(0);
 }
 
 void handler1(void) {
@@ -41,7 +53,10 @@ void handler1(void) {
 }
 
 
-int main(void) {
-  lwsf_start(NULL, handler1);
+int main(int argc, char **argv) {
+    if(argc > 1) 
+	HACKY_SACKERS=atoi(argv[1]); 
+    hackysackers = malloc(sizeof(struct th*)*HACKY_SACKERS); 
+    lwsf_start(NULL, handler1);
   return 0;
 }

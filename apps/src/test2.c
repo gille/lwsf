@@ -36,6 +36,8 @@ void ping(void *arg) {
       exit(1);
     }
   }
+
+  printf("TEST PASS!\n");
   exit(0);
 }
 
