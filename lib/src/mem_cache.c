@@ -84,7 +84,7 @@ int lwsf_mem_cache_destroy(struct lwsf_mem_cache *c) {
 
 
 void *lwsf_mem_cache_alloc(struct lwsf_mem_cache *c) {
-     unsigned long *r = (unsigned long*)(&(c->free));
+  unsigned long *r = (unsigned long*)(c->free.head);
 
      if(r == NULL) {  
 	  lwsf_mem_cache_grow(c); 

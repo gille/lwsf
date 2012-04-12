@@ -131,12 +131,8 @@ static void SCHEDULE(void) {
 	       lwsf_arch_thread_swap(old->context, new->context); 
 	  }
      }
-     for(;;) {
-	  printf("IN IDLE!\n");      
-	  usleep(50000); /* 50ms */
-	  SCHEDULE();        
-     }
 }
+
 void lwsf_thread_entry(void) {
      static int first = 0;
      struct lwsf_th *th;
@@ -150,6 +146,7 @@ void lwsf_thread_entry(void) {
     
 	  while((th = LIST_GET_HEAD(&lwsf_world.blocked)) != NULL) {
 	       LIST_REMOVE_HEAD(&lwsf_world.blocked);
+	       th->state = STATE_READY;
 	       LIST_INSERT_TAIL(&lwsf_world.ready, th);
 	       //printd("Thread %s made ready\n", th->name);
 	  }
@@ -172,7 +169,9 @@ struct lwsf_th *lwsf_thread_internal_new(const char *name, int type) {
      struct lwsf_th *t; 
      struct lwsf_list_elem *l;
 
-     t = malloc(sizeof(*t));
+     //     t = malloc(sizeof(*t));
+     t = lwsf_mem_cache_alloc(lwsf_world.thread_mc);
+     printf("got %p\n", t);
      if(t == NULL) 
 	  goto out;
 
@@ -296,11 +295,13 @@ void lwsf_msg_send(void **_m, struct lwsf_th *dst) {
 	  //LIST_PRINT(&lwsf_world.blocked);
 	  printd("removed\n");
 	  LIST_REMOVE_ELEM(&lwsf_world.blocked, dst); 
+	  assert(dst->state <= STATE_BLOCKED);
+	  dst->state = STATE_READY;
 	  //LIST_PRINT(&lwsf_world.blocked);
 	  LIST_INSERT_TAIL(&lwsf_world.ready, dst);
+	  /* Yes! We need to call schedule */
+	  printf("tried to sched!\n");
 	  SCHEDULE();
-
-	  /* FIXME */
      }
 }
 
@@ -326,15 +327,18 @@ void * lwsf_msg_recv(lwsf_msg_queue *m) {
 
      /* blah? */
      while((msg = lwsf_msg_recv_try(m)) == NULL) {
-	  LIST_REMOVE_HEAD(&lwsf_world.ready);
-	  LIST_INSERT_TAIL(&lwsf_world.blocked, current); 
-	  //LIST_PRINT(&lwsf_world.blocked);
-	  current->state = STATE_BLOCKED_MESSAGE;
-
-	  if(m != NULL) {
-	       LIST_INSERT_TAIL(&(m->blocked), current);
+	  if(current->state == STATE_READY) {
+	       LIST_REMOVE_HEAD(&lwsf_world.ready);
+	       LIST_INSERT_TAIL(&lwsf_world.blocked, current); 
+	       //LIST_PRINT(&lwsf_world.blocked);
+	       current->state = STATE_BLOCKED_MESSAGE;
+	       
+	       if(m != NULL) {
+		    LIST_INSERT_TAIL(&(m->blocked), current);
+	       }
+	       printf("Call sched!\n");
+	       SCHEDULE();
 	  }
-	  SCHEDULE();
      } 
   
      return (msg); 
