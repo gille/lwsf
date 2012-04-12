@@ -1,3 +1,4 @@
+#include <assert.h>
 #include "lwsf.h"
 #include "list.h"
 #include <sys/socket.h>
@@ -7,6 +8,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <strings.h>
 
 struct msg {
      uint32_t mid;
@@ -23,53 +25,59 @@ int read_pipe[2];
  * accept/read server. Otherwise things will get lost/blocked. 
  */
 #define MAX(a,b) ((a)>(b)?(a):(b))
+/* OK on Linux this applies */
+static struct msg *accept_msgs[1024];
+static struct msg *read_msgs[1024];
+
 static void * accept_server(void *arg) {
      fd_set r, _r; 
      int max=0; 
      struct msg *m;
      char buf[128];
-     struct lwsf_list l;
-     struct lwsf_list_elem *e;
-
-     LIST_INIT(&l);
+     int i;
+     long *bits; 
+     int n;
+     int fd;
 
      FD_ZERO(&r);
      FD_ZERO(&_r);
      FD_SET(accept_pipe[0], &r);
      max = accept_pipe[0];
+     bits = __FDS_BITS(&_r); 
+
      for(;;) {
 	  _r = r;
-	  if (select(max+1, &_r, 0, 0, 0) > 0) {
-	       /**/      
-	       printf("got out of select!\n");
+	  n = select(max+1, &_r, 0, 0, 0);
+	  if(n > 0) {
 	       if(FD_ISSET(accept_pipe[0], &_r)) {
 		    /* Ok this was the easy one */
-		    printf("We have something in the read pipe!\n");
 		    read(accept_pipe[0], buf, sizeof(buf)); 
 		    do { 
 			 m = (struct msg*)lwsf_msg_recv_try(acceptq); 
 			 if(m != NULL) {
 			      FD_SET(m->fd, &r);
-			      printf("Ok wait for FD: %d\n", m->fd);
 			      max = MAX(max, m->fd); 
-			      e = malloc(sizeof(*e));
-			      e->data=m;
-			      LIST_INSERT_TAIL(&l, e); 
+			      assert(accept_msgs[m->fd] == NULL);
+			      accept_msgs[m->fd]=m;
 			 }
 		    } while(m != NULL);		    
-	       } else {
-		    /* Find the originating file descriptor */
-		    for(e=l.head; e != NULL; e = e->next) {
-			 if(e->data != NULL) {
-			      m = e->data;
-			      if(FD_ISSET(m->fd, &r)) {
-				   printf("Found a set descriptor! %d\n", m->fd);
-				   FD_CLR(m->fd, &r); 
-				   lwsf_msg_send((void**)&m, lwsf_msg_sender(m)); 
-			      }
+		    n--;
+	       }
+	       if(n > 0) {
+		    for(i = 0; i < __FD_SETSIZE/ __NFDBITS; i++) {
+			 if(bits[i] != 0) {
+			      fd = ffs(bits[i])+32*i-1; /* ? */
+			      m = accept_msgs[fd];
+			      assert(m != NULL);
+			      accept_msgs[fd] = NULL;
+			      FD_CLR(m->fd, &r); 
+			      lwsf_msg_send((void**)&m, lwsf_msg_sender(m)); 
+			      if(--n == 0) 
+				   break;
 			 }
 		    }
 	       }
+	       assert(n==0);
 	  }
      }
      return NULL;
@@ -80,10 +88,11 @@ static void * read_server(void *arg) {
      int max=0; 
      struct msg *m;
      char buf[128];
-     struct lwsf_list l;
-     struct lwsf_list_elem *e;
+     long *bits;
+     int i;
+     int n;
 
-     LIST_INIT(&l);
+     bits = __FDS_BITS(&_r); 
      FD_ZERO(&r);
      FD_ZERO(&_r);
      FD_SET(read_pipe[0], &r);
@@ -91,37 +100,40 @@ static void * read_server(void *arg) {
 
      for(;;) {
 	  _r = r;
-	  if (select(max+1, &_r, 0, 0, 0) > 0) {
+	  n = select(max+1, &_r, 0, 0, 0);
+	  if(n > 0) {
 	       /**/      
-	       printf("got out of select!\n");
 	       if(FD_ISSET(read_pipe[0], &_r)) {
 		    /* Ok this was the easy one */
-		    printf("We have something in the read pipe!\n");
 		    read(read_pipe[0], buf, sizeof(buf)); 
 		    do { 
 			 m = (struct msg*)lwsf_msg_recv_try(readq); 
 			 if(m != NULL) {
 			      FD_SET(m->fd, &r);
-			      printf("Ok wait for FD: %d\n", m->fd);
 			      max = MAX(max, m->fd); 
-			      e = malloc(sizeof(*e));
-			      e->data=m;
-			      LIST_INSERT_TAIL(&l, e); 
+			      assert(m->fd > 0 && m->fd < 1024);
+			      assert(read_msgs[m->fd] == NULL); 
+			      read_msgs[m->fd] = m;
 			 }
-		    } while(m != NULL);		    
-	       } else {
-		    /* Find the originating file descriptor */
-		    for(e=l.head; e != NULL; e = e->next) {
-			 if(e->data != NULL) {
-			      m = e->data;
-			      if(FD_ISSET(m->fd, &r)) {
-				   printf("Found a set descriptor! %d\n", m->fd);
-				   FD_CLR(m->fd, &r); 
-				   lwsf_msg_send((void**)&m, lwsf_msg_sender(m)); 
-			      }
+		    } while(m != NULL);
+		    n--;
+	       }
+	       if(n > 0) {
+		    for(i = 0; i < __FD_SETSIZE/ __NFDBITS; i++) {
+			 if(bits[i] != 0) {
+			      int fd;
+			      fd = ffs(bits[i])+32*i-1; /* ? */
+			      m = read_msgs[fd];
+			      assert(m != NULL);
+			      read_msgs[fd] = NULL;
+			      FD_CLR(m->fd, &r); 
+			      lwsf_msg_send((void**)&m, lwsf_msg_sender(m)); 
+			      if(--n == 0) 
+				   break;
 			 }
 		    }
 	       }
+	       assert(n==0);
 	  }
      }
      return NULL;
@@ -132,13 +144,9 @@ int lwsf_accept(int fd, struct sockaddr *sockaddr, size_t *size) {
      /* We do the select in another thread context so we can KEEP running! */
      m =(struct msg*) lwsf_msg_alloc(10, 10); 
      m->fd = fd; 
-     printf("got here!\n");
-     printf("acceptq: %p\n", acceptq);
      lwsf_msg_sendq((void**)&m, acceptq);
-     printf("try to write!\n");
      if(write(accept_pipe[1], "1", 1) != 1)
 	  printf("write to pipe failed!\n");
-     printf("Wrote! now wait\n");
      
      m = (struct msg*)lwsf_msg_recv(NULL); 
      return accept(fd, sockaddr, size); 
@@ -151,9 +159,9 @@ void lwsf_close(int fd) {
 
 size_t lwsf_read(int fd, char *buf, size_t size) {
      struct msg *m;
-     m =(struct msg*) lwsf_msg_alloc(10, 10); 
+     m = (struct msg*) lwsf_msg_alloc(10, 10); 
      m->fd = fd;
-     lwsf_msg_sendq(&m, readq);
+     lwsf_msg_sendq((void**)&m, readq);
      if(write(read_pipe[1], "1", 1) != 1)
      m = lwsf_msg_recv(NULL);
      return read(fd, buf, size); 
@@ -170,7 +178,6 @@ void lwsf_init_socket_servers() {
   
      readq = lwsf_msgq_create();
      acceptq = lwsf_msgq_create();
-     printf("%p\n", acceptq); 
      pipe(accept_pipe);
      pipe(read_pipe);
 
