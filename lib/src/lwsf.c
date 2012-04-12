@@ -212,6 +212,7 @@ struct lwsf_th* lwsf_thread_new(const char *name, void (*entry)(void*), void *ar
      t = lwsf_thread_internal_new(name, THREAD_TYPE_LWSF);
      if(t == NULL)
 	  goto out; 
+     /* FIXME: Convert this to a mem cache object? */
      stack = malloc(stack_size);
      if(stack == NULL) 
 	  goto out_stack;
@@ -412,8 +413,7 @@ void *lwsf_msg_alloc(int size, int id) {
 }
 
 lwsf_msg_queue* lwsf_msgq_create() {
-     int s= sizeof(lwsf_msg_queue);
-     lwsf_msg_queue *m = malloc(s);
+     lwsf_msg_queue *m = malloc(sizeof(lwsf_msg_queue));
   
      LIST_INIT(&m->messages);
      LIST_INIT(&m->blocked);
