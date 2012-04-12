@@ -5,6 +5,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <unistd.h>
+
 #include "lwsf.h"
 #include "lwsf_mem_cache.h"
 #include "lwsf_internal.h"
@@ -107,7 +109,7 @@ static void ASSERT_WORLD(void)
 #endif
 
 static void SCHEDULE(void) {
-    struct lwsf_th *old, *new;
+  struct lwsf_th *old, *new;
     printd("schedule called\n");
 #ifdef ASSERT_BUILD
     ASSERT_WORLD();
@@ -129,13 +131,12 @@ static void SCHEDULE(void) {
 	    lwsf_arch_thread_swap(old->context, new->context); 
 	}
     }
-    printf("IN IDLE!\n");
-    exit(1);
-    //sleep(1);
-    SCHEDULE();        
-  }
+    for(;;) {
+      printf("IN IDLE!\n");      
+      usleep(50000); /* 50ms */
+      SCHEDULE();        
+    }
 }
-
 void lwsf_thread_entry(void) {
   static int first = 0;
   struct lwsf_th *th;
@@ -378,20 +379,20 @@ void lwsf_thread_yield(void) {
 
 void lwsf_start(void (*handler0)(void), void (*handler1)(void)) 
 {
+  int orig_state[16];
+
   if(handler0)
     handler0();
 
   lwsf_world.thread_mc = lwsf_mem_cache_create(sizeof(struct lwsf_th));
 
-  th = lwsf_thread_new("idle", NULL, NULL);
-  idle_thread = th;
+  current = idle_thread = lwsf_thread_new("idle", NULL, NULL);
   idle_thread->entry = (void*)handler1; 
-  current = th;
   /* Remove idle from blocked threads */
   LIST_REMOVE_HEAD(&lwsf_world.blocked);
 
   printd("swapping contexts\n");
-  lwsf_arch_thread_swap(lwsf_world.orig_state, idle_thread->context);
+  lwsf_arch_thread_swap(orig_state, idle_thread->context);
   lwsf_thread_delete(idle_thread);
   LIST_PRINT(&lwsf_world.world);
   idle_thread = NULL;
