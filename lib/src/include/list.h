@@ -14,6 +14,7 @@ struct lwsf_list {
 
 #define LIST_INIT(l) do { (l)->head = NULL; (l)->tail = NULL; } while(0)
 /* fixme double linked ? */
+/* Fixme this needs to be done atomically */
 #define LIST_INSERT_TAIL(l, n) do {                \
   if((l)->head == NULL) { 				\
     (l)->head = (struct lwsf_list_elem*)(n);            \
@@ -21,14 +22,14 @@ struct lwsf_list {
   } else {                                         \
     (l)->tail->next = (struct lwsf_list_elem*)(n);      \
   }                                                \
+  ((struct lwsf_list_elem*)(n))->next = NULL;	   \
   ((struct lwsf_list_elem*)(n))->prev = (l)->tail;	   \
   (l)->tail = (struct lwsf_list_elem *)(n);             \
-  ((struct lwsf_list_elem*)(n))->next = NULL;	   \
 } while(0)
 
 #define LIST_INSERT_HEAD(l,n) do {                 \
-  ((struct lwsf_list_elem*)(n))->next = (l)->head;	   \
-  ((struct lwsf_list_elem*)(n))->prev = NULL;		   \
+	((struct lwsf_list_elem*)(n))->next = (l)->head;   \
+	((struct lwsf_list_elem*)(n))->prev = NULL;	   \
   (l)->head = (struct lwsf_list_elem*)(n);              \
 } while(0)
 

@@ -32,13 +32,18 @@ static void lwsf_mem_cache_grow(struct lwsf_mem_cache *c) {
 
 }
 
-
+/* FIXME: Add name! */
+#define ARCH_CACHE_LINE (128)
+#define CACHE_LINE_ALIGN(x) ((((x+ARCH_CACHE_LINE-1)/ARCH_CACHE_LINE)*ARCH_CACHE_LINE))
 lwsf_mem_cache * lwsf_mem_cache_create(int block_size) {
   struct lwsf_mem_cache *c;
   int i;
   unsigned char *p; 
 
   block_size += sizeof (unsigned long);
+
+  block_size = CACHE_LINE_ALIGN(block_size);
+
   c= malloc(block_size*BLOCKS + sizeof(struct lwsf_mem_cache)); 
   if(c == NULL) {
     return NULL;
