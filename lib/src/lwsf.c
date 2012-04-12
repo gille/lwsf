@@ -60,6 +60,8 @@ static struct lwsf_world {
      struct lwsf_th *current;
 
      struct lwsf_mem_cache *thread_mc;
+
+     struct lwsf_th *idle_thread;
 } lwsf_world;
 
 struct lwsf_msg {
@@ -68,9 +70,6 @@ struct lwsf_msg {
      unsigned long aligner;/* fixme */
      unsigned char data[1];
 };
-
-struct lwsf_th *current;
-struct lwsf_th *idle_thread;
 
 #if 1
 #define printd(fmt, args...)
@@ -99,9 +98,9 @@ static void ASSERT_WORLD(void)
 	  i++;
      //printf("There are %d threadlets\n", i);
      for(n=lwsf_world.world.head; n != NULL; n=n->next)
-	  if(!((is_in(&lwsf_world.blocked, n->data)) ||is_in(&lwsf_world.ready, n->data) || (n->data+12) != idle_thread)) {
+	  if(!((is_in(&lwsf_world.blocked, n->data)) ||is_in(&lwsf_world.ready, n->data) || (n->data+12) != lwsf_world.idle_thread)) {
 	       printf("A threadlet has been lost! %p\n", n->data);
-	       printf("%p\n", idle_thread);
+	       printf("%p\n", lwsf_world.idle_thread);
 	       printf("A threadlet has been lost! %#x\n", ((unsigned long)n)-12);
 	       exit(-1);
 	  }
@@ -116,17 +115,17 @@ static void SCHEDULE(void) {
 #endif
      if(lwsf_world.ready.head == NULL) {
 	  printd("ready_head is NULL swap to idle\n");
-	  old = current; 
-	  new = idle_thread; 
-	  current = new; 
+	  old = lwsf_world.current; 
+	  new = lwsf_world.idle_thread; 
+	  lwsf_world.current = new; 
 	  lwsf_arch_thread_swap(old->context, new->context); 
      } else {
-	  printd("ready_head is: %p %p\n", lwsf_world.ready.head, current);
-	  if(lwsf_world.ready.head != (void*)current) {
+	  printd("ready_head is: %p %p\n", lwsf_world.ready.head, lwsf_world.current);
+	  if(lwsf_world.ready.head != (void*)lwsf_world.current) {
 	       printd("swap to %s\n", ((struct lwsf_th*)LIST_GET_HEAD(&lwsf_world.ready))->name);
-	       old = current; 
+	       old = lwsf_world.current; 
 	       new = ((struct lwsf_th*)LIST_GET_HEAD(&lwsf_world.ready)); 
-	       current = new; 
+	       lwsf_world.current = new; 
 	       printd("swapping %p %p \n", old, new);
 	       lwsf_arch_thread_swap(old->context, new->context); 
 	  }
@@ -140,7 +139,7 @@ void lwsf_thread_entry(void) {
      printd("here\n");
      if(first == 0) {
 	  first++;
-	  handler1 = (void*)current->entry; 
+	  handler1 = (void*)lwsf_world.current->entry; 
 	  //printd("calling hook1\n");
 	  handler1();
     
@@ -160,8 +159,8 @@ void lwsf_thread_entry(void) {
 	  }
      } 
      printd("calling entry point\n");
-     current->entry(current->arg);
-     lwsf_thread_kill(current);
+     lwsf_world.current->entry(lwsf_world.current->arg);
+     lwsf_thread_kill(lwsf_world.current);
      /* never reached */
 }
 
@@ -169,9 +168,7 @@ struct lwsf_th *lwsf_thread_internal_new(const char *name, int type) {
      struct lwsf_th *t; 
      struct lwsf_list_elem *l;
 
-     //     t = malloc(sizeof(*t));
      t = lwsf_mem_cache_alloc(lwsf_world.thread_mc);
-     printf("got %p\n", t);
      if(t == NULL) 
 	  goto out;
 
@@ -243,7 +240,7 @@ void lwsf_thread_delete(struct lwsf_th *t) {
 }
 
 void lwsf_thread_kill(struct lwsf_th *t) {
-     if(t == current) {
+     if(t == lwsf_world.current) {
 	  LIST_REMOVE_ELEM(&lwsf_world.ready, t);
      } else {
 	  exit(-1);
@@ -269,7 +266,7 @@ void lwsf_msg_sendq(void **_m, lwsf_msg_queue *dst) {
      struct lwsf_msg *m = *_m;
      *_m = NULL;
      m--;
-     m->sender = current; 
+     m->sender = lwsf_world.current; 
      LIST_INSERT_TAIL(&(dst->messages), m);
 
      if(dst->blocked.head != NULL) {
@@ -286,7 +283,7 @@ void lwsf_msg_send(void **_m, struct lwsf_th *dst) {
      struct lwsf_msg *m = *_m; 
      *_m = NULL;
      m--;
-     m->sender = current; 
+     m->sender = lwsf_world.current; 
 
      LIST_INSERT_TAIL(&(dst->mailbox.messages), m);	
 
@@ -300,7 +297,6 @@ void lwsf_msg_send(void **_m, struct lwsf_th *dst) {
 	  //LIST_PRINT(&lwsf_world.blocked);
 	  LIST_INSERT_TAIL(&lwsf_world.ready, dst);
 	  /* Yes! We need to call schedule */
-	  printf("tried to sched!\n");
 	  SCHEDULE();
      }
 }
@@ -309,7 +305,7 @@ void *lwsf_msg_recv_try(lwsf_msg_queue *m) {
      struct lwsf_msg *msg;
 
      if(m == NULL) {
-	  m = &current->mailbox;
+	  m = &lwsf_world.current->mailbox;
      }    
      /**/
      if(m->messages.head != NULL) {
@@ -327,16 +323,15 @@ void * lwsf_msg_recv(lwsf_msg_queue *m) {
 
      /* blah? */
      while((msg = lwsf_msg_recv_try(m)) == NULL) {
-	  if(current->state == STATE_READY) {
+	  if(lwsf_world.current->state == STATE_READY) {
 	       LIST_REMOVE_HEAD(&lwsf_world.ready);
-	       LIST_INSERT_TAIL(&lwsf_world.blocked, current); 
+	       LIST_INSERT_TAIL(&lwsf_world.blocked, lwsf_world.current); 
 	       //LIST_PRINT(&lwsf_world.blocked);
-	       current->state = STATE_BLOCKED_MESSAGE;
+	       lwsf_world.current->state = STATE_BLOCKED_MESSAGE;
 	       
 	       if(m != NULL) {
-		    LIST_INSERT_TAIL(&(m->blocked), current);
+		    LIST_INSERT_TAIL(&(m->blocked), lwsf_world.current);
 	       }
-	       printf("Call sched!\n");
 	       SCHEDULE();
 	  }
      } 
@@ -351,8 +346,8 @@ struct lwsf_th* lwsf_msg_sender(void *m) {
 }
 
 void lwsf_thread_stop(struct lwsf_th *t) { 
-     if(t == current) {
-	  printd("stopping current thread\n");
+     if(t == lwsf_world.current) {
+	  printd("stopping lwsf_world.current thread\n");
 	  LIST_REMOVE_HEAD(&lwsf_world.ready); 
 	  LIST_INSERT_TAIL(&lwsf_world.blocked, t); 
 	  SCHEDULE();
@@ -373,10 +368,10 @@ void lwsf_thread_stop(struct lwsf_th *t) {
 
 void lwsf_thread_yield(void) {
      printd("yield called\n");
-     //  LIST_REMOVE_ELEM(&lwsf_world.ready, current);
+     //  LIST_REMOVE_ELEM(&lwsf_world.ready, lwsf_world.current);
      LIST_REMOVE_HEAD(&lwsf_world.ready); 
-     LIST_INSERT_TAIL(&lwsf_world.ready, current);
-     if(current != (struct lwsf_th*)(lwsf_world.ready.head)){ 
+     LIST_INSERT_TAIL(&lwsf_world.ready, lwsf_world.current);
+     if(lwsf_world.current != (struct lwsf_th*)(lwsf_world.ready.head)){ 
 	  SCHEDULE();
      }
 }
@@ -390,16 +385,16 @@ void lwsf_start(void (*handler0)(void), void (*handler1)(void))
 
      lwsf_world.thread_mc = lwsf_mem_cache_create(sizeof(struct lwsf_th));
 
-     current = idle_thread = lwsf_thread_new("idle", NULL, NULL);
-     idle_thread->entry = (void*)handler1; 
+     lwsf_world.current = lwsf_world.idle_thread = lwsf_thread_new("idle", NULL, NULL);
+     lwsf_world.idle_thread->entry = (void*)handler1; 
      /* Remove idle from blocked threads */
      LIST_REMOVE_HEAD(&lwsf_world.blocked);
 
      printd("swapping contexts\n");
-     lwsf_arch_thread_swap(orig_state, idle_thread->context);
-     lwsf_thread_delete(idle_thread);
+     lwsf_arch_thread_swap(orig_state, lwsf_world.idle_thread->context);
+     lwsf_thread_delete(lwsf_world.idle_thread);
      LIST_PRINT(&lwsf_world.world);
-     idle_thread = NULL;
+     lwsf_world.idle_thread = NULL;
 }
 
 /* There's no point in receiving data if no thread is available to process it */
