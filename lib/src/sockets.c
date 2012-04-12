@@ -65,8 +65,9 @@ static void * accept_server(void *arg) {
 	       }
 	       if(n > 0) {
 		    for(i = 0; i < __FD_SETSIZE/ __NFDBITS; i++) {
-			 if(bits[i] != 0) {
+			 while(bits[i] != 0) {
 			      fd = ffs(bits[i])+32*i-1; /* ? */
+			      bits[i] &= ~(1<<fd); 
 			      m = accept_msgs[fd];
 			      assert(m != NULL);
 			      accept_msgs[fd] = NULL;
@@ -120,9 +121,10 @@ static void * read_server(void *arg) {
 	       }
 	       if(n > 0) {
 		    for(i = 0; i < __FD_SETSIZE/ __NFDBITS; i++) {
-			 if(bits[i] != 0) {
+			 while(bits[i] != 0) {
 			      int fd;
 			      fd = ffs(bits[i])+32*i-1; /* ? */
+			      bits[i] &= ~(1<<fd); 
 			      m = read_msgs[fd];
 			      assert(m != NULL);
 			      read_msgs[fd] = NULL;

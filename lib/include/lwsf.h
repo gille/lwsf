@@ -21,6 +21,7 @@ extern void * lwsf_msg_recv(lwsf_msg_queue * m);
 extern void *lwsf_msg_recv_try(lwsf_msg_queue *m);
 extern lwsf_th* lwsf_msg_sender(void *m);
 extern void *lwsf_msg_alloc(int size, int id);
+extern void lwsf_msg_free(void **m);
 
 extern lwsf_msg_queue* lwsf_msgq_create(void);
 

@@ -24,6 +24,13 @@
 
 #define STATE_STOPPED             16
 
+#define KILL_THREAD 0x1000
+
+struct msg {
+     uint32_t id;
+     struct lwsf_th *th;
+};
+
 struct  lwsf_msg_queue {
      struct lwsf_list messages;
      struct lwsf_list blocked;
@@ -107,6 +114,17 @@ static void ASSERT_WORLD(void)
 }
 #endif
 
+static void lwsf_thread_delete(struct lwsf_th *t) {	
+     assert(t != lwsf_world.current);
+     LIST_REMOVE_ELEM(&lwsf_world.world, &t->n2);
+     if(t->name)
+	  free(t->name);
+     if(t->stack)
+	  free(t->stack);
+
+     lwsf_mem_cache_free(t);	
+}
+
 static void SCHEDULE(void) {
      struct lwsf_th *old, *new;
      printd("schedule called\n");
@@ -152,12 +170,27 @@ void lwsf_thread_entry(void) {
 	  SCHEDULE();
 	  /* this is now the idle loop */
 	  for(;;) {
-
+	       struct msg *m;
 	       if(lwsf_world.world.head == lwsf_world.world.tail) {
 		   printf("IN IDLE and only guy, lets leave\n");
 		   exit(0);
 		   /* There are no other threads.. */
 		   break;
+	       }
+	       m = lwsf_msg_recv_try(NULL); 
+	       if(m != NULL) {
+		    printf("%x\n", m->id);
+		    switch(m->id) {
+			
+		    case KILL_THREAD:
+			 lwsf_thread_delete(m->th);
+			 break;
+		    default:
+			 printf("Unknown message!\n");
+			 exit(-1);
+			 break;
+		    }
+		    lwsf_msg_free((void**)&m);
 	       }
 	       SCHEDULE();
 	  }
@@ -210,7 +243,7 @@ struct lwsf_th *lwsf_thread_sys_new(const char *name) {
 
 struct lwsf_th* lwsf_thread_new(const char *name, void (*entry)(void*), void *arg) {
      struct lwsf_th *t; 
-     int stack_size = 100*1000;
+     int stack_size = 1000*1000;
      void *stack;
 
      t = lwsf_thread_internal_new(name, THREAD_TYPE_LWSF);
@@ -236,26 +269,22 @@ out:
      return NULL;
 }
 
-void lwsf_thread_delete(struct lwsf_th *t) {	
-     LIST_REMOVE_ELEM(&lwsf_world.world, &t->n2);
-     free(t->name);
-     if(t->stack)
-	  free(t->stack);
-     lwsf_mem_cache_free(t);	
-}
-
 void lwsf_thread_kill(struct lwsf_th *t) {
      if(t == lwsf_world.current) {
 	  LIST_REMOVE_ELEM(&lwsf_world.ready, t);
+	  struct msg *msg = lwsf_msg_alloc(sizeof(struct msg), KILL_THREAD); 
+	  msg->th=t;
+	  lwsf_msg_send((void**)&msg, lwsf_world.idle_thread); 
+	  printf("Oooh schedule!\n");
+	  SCHEDULE(); 	  
+	  /* THIS IS NEVER REACHED! */
      } else {
+	  /* FIXME: Let us kill other threads? */
 	  exit(-1);
+	  lwsf_thread_delete(t);
      }    
-     printf("ready to delete me!!\n");
-     lwsf_thread_delete(t);
 
-     /* FIXME: Free context! */
-     SCHEDULE();
-  
+
 }
 
 void lwsf_thread_start(struct lwsf_th *t) {	
@@ -415,6 +444,16 @@ void *lwsf_msg_alloc(int size, int id) {
      *idp = id;
 
      return m;
+}
+
+void lwsf_msg_free(void **m) {
+     struct lwsf_msg *msg;
+     if(m == NULL) return;
+     msg = *m;
+     if(msg == NULL) return;
+     msg--;     
+     free(msg);
+     *m = NULL; 
 }
 
 lwsf_msg_queue* lwsf_msgq_create() {
