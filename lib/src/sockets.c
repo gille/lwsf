@@ -150,8 +150,11 @@ void lwsf_close(int fd) {
 }
 
 size_t lwsf_read(int fd, char *buf, size_t size) {
-     void *m = NULL;
+     struct msg *m;
+     m =(struct msg*) lwsf_msg_alloc(10, 10); 
+     m->fd = fd;
      lwsf_msg_sendq(&m, readq);
+     if(write(read_pipe[1], "1", 1) != 1)
      m = lwsf_msg_recv(NULL);
      return read(fd, buf, size); 
 }
