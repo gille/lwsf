@@ -20,5 +20,5 @@ void lwsf_arch_create_context(void *context, void *stack, int size) {
      t[3] = 0; /* SI */
      t[4] = 0; /* DI */
      t[5] = (unsigned long)x; /* SP */
-     t[6] = (unsigned long)(stack+4); /*      
+     t[6] = (unsigned long)(stack+4); 
 }
