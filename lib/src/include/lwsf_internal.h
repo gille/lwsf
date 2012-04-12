@@ -7,4 +7,6 @@ extern void lwsf_thread_entry(void);
 
 extern void lwsf_thread_kill(struct lwsf_th *t);
 extern struct lwsf_th* lwsf_thread_sys_new(const char *name);
+extern void lwsf_init_socket_servers();
+
 #endif

@@ -132,13 +132,13 @@ static void SCHEDULE(void) {
      }
 }
 
+/* FIXME: Make this static, needs new parameter for create context */
 void lwsf_thread_entry(void) {
-     static int first = 0;
      struct lwsf_th *th;
      void (*handler1)(void);
      printd("here\n");
-     if(first == 0) {
-	  first++;
+     if((lwsf_world.current == lwsf_world.idle_thread)) {
+	  lwsf_init_socket_servers();
 	  handler1 = (void*)lwsf_world.current->entry; 
 	  //printd("calling hook1\n");
 	  handler1();
@@ -152,9 +152,13 @@ void lwsf_thread_entry(void) {
 	  SCHEDULE();
 	  /* this is now the idle loop */
 	  for(;;) {
-	       printf("IN IDLE!\n");
-	       exit(1);
-	       //sleep(1);
+
+	       if(lwsf_world.world.head == lwsf_world.world.tail) {
+		   printf("IN IDLE and only guy, lets leave\n");
+		   exit(0);
+		   /* There are no other threads.. */
+		   break;
+	       }
 	       SCHEDULE();
 	  }
      } 
@@ -164,7 +168,7 @@ void lwsf_thread_entry(void) {
      /* never reached */
 }
 
-struct lwsf_th *lwsf_thread_internal_new(const char *name, int type) {
+static struct lwsf_th *lwsf_thread_internal_new(const char *name, int type) {
      struct lwsf_th *t; 
      struct lwsf_list_elem *l;
 
@@ -237,7 +241,7 @@ void lwsf_thread_delete(struct lwsf_th *t) {
      free(t->name);
      if(t->stack)
 	  free(t->stack);
-     free(t);	
+     lwsf_mem_cache_free(t);	
 }
 
 void lwsf_thread_kill(struct lwsf_th *t) {
@@ -245,8 +249,8 @@ void lwsf_thread_kill(struct lwsf_th *t) {
 	  LIST_REMOVE_ELEM(&lwsf_world.ready, t);
      } else {
 	  exit(-1);
-     }
-  
+     }    
+     printf("ready to delete me!!\n");
      lwsf_thread_delete(t);
 
      /* FIXME: Free context! */
@@ -388,7 +392,8 @@ void lwsf_start(void (*handler0)(void), void (*handler1)(void))
 
      lwsf_world.current = lwsf_world.idle_thread = lwsf_thread_new("idle", NULL, NULL);
      lwsf_world.idle_thread->entry = (void*)handler1; 
-     /* Remove idle from blocked threads */
+     /* Remove idle from blocked threads */     
+
      LIST_REMOVE_HEAD(&lwsf_world.blocked);
 
      printd("swapping contexts\n");

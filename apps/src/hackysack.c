@@ -15,7 +15,7 @@ int HACKY_SACKERS=10;
 struct lwsf_th **hackysackers; 
 
 #define HACKY_SACK 0xBABE
-#define LOOPS 100
+#define LOOPS 10
 
 struct hacky_msg {
     uint32_t id;

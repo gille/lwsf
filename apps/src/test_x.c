@@ -11,10 +11,10 @@
 #endif
 
 void handler1(void) {
-  lwsf_thread_new("p1", ping, NULL);
+    lwsf_thread_new("p1", ping, NULL);
 }
 
 int main(void) {
-  lwsf_start(NULL, handler1);
-  return 0;
+    lwsf_start(NULL, handler1);
+    return 0;
 }
