@@ -6,6 +6,7 @@ CFLAGS  = -c
 CFLAGS += -O3
 CFLAGS += -g
 CFLAGS += -Wall 
+CFLAGS += -fconserve-stack
 
 ASFLAGS=-c -Wa,-g
 LDFLAGS=-g

@@ -51,7 +51,8 @@ static void * accept_server(void *arg) {
 	  if(n > 0) {
 	       if(FD_ISSET(accept_pipe[0], &_r)) {
 		    /* Ok this was the easy one */
-		    read(accept_pipe[0], buf, sizeof(buf)); 
+		    if(read(accept_pipe[0], buf, sizeof(buf)) < 0)
+			 abort();
 		    do { 
 			 m = (struct msg*)lwsf_msg_recv_try(acceptq); 
 			 if(m != NULL) {
@@ -64,7 +65,7 @@ static void * accept_server(void *arg) {
 		    n--;
 	       }
 	       if(n > 0) {
-		    for(i = 0; i < __FD_SETSIZE/ __NFDBITS; i++) {
+		 for(i = 0; (i*32) < max && i < __FD_SETSIZE/ __NFDBITS; i++) {
 			 while(bits[i] != 0) {
 			      fd = ffs(bits[i])+32*i-1; /* ? */
 			      bits[i] &= ~(1<<fd); 
@@ -106,7 +107,8 @@ static void * read_server(void *arg) {
 	       /**/      
 	       if(FD_ISSET(read_pipe[0], &_r)) {
 		    /* Ok this was the easy one */
-		    read(read_pipe[0], buf, sizeof(buf)); 
+		    if(read(read_pipe[0], buf, sizeof(buf)) < 0)
+			 abort();
 		    do { 
 			 m = (struct msg*)lwsf_msg_recv_try(readq); 
 			 if(m != NULL) {
@@ -120,7 +122,7 @@ static void * read_server(void *arg) {
 		    n--;
 	       }
 	       if(n > 0) {
-		    for(i = 0; i < __FD_SETSIZE/ __NFDBITS; i++) {
+		 for(i = 0; (i*32) < max && i < __FD_SETSIZE/ __NFDBITS; i++) {
 			 while(bits[i] != 0) {
 			      int fd;
 			      fd = ffs(bits[i])+32*i-1; /* ? */
@@ -180,8 +182,14 @@ void lwsf_init_socket_servers() {
   
      readq = lwsf_msgq_create();
      acceptq = lwsf_msgq_create();
-     pipe(accept_pipe);
-     pipe(read_pipe);
+     if(pipe(accept_pipe) == -1) {
+	  printf("ERROR: Unable to create pipe!\n");
+	  exit(-1);
+     }
+     if(pipe(read_pipe) == -1) {
+	  printf("ERROR: Unable to create pipe!\n");
+	  exit(-1);
+     }
 
      pthread_create(&read_thread, NULL, read_server, NULL); 
      pthread_create(&accept_thread, NULL, accept_server, NULL); 

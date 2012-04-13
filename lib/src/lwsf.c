@@ -79,7 +79,7 @@ struct lwsf_msg {
 };
 
 #if 1
-#define printd(fmt, args...)
+#define printd(fmt, args...) do { } while(0)
 #else
 #define printd(fmt, args...) { printf("[%s:%d] "fmt, __FILE__, __LINE__, ##args); }
 #endif
@@ -103,7 +103,7 @@ static void ASSERT_WORLD(void)
      struct lwsf_list_elem *n;
      for(n=lwsf_world.world.head; n != NULL; n=n->next)
 	  i++;
-     //printf("There are %d threadlets\n", i);
+     /*printf("There are %d threadlets\n", i);*/
      for(n=lwsf_world.world.head; n != NULL; n=n->next)
 	  if(!((is_in(&lwsf_world.blocked, n->data)) ||is_in(&lwsf_world.ready, n->data) || (n->data+12) != lwsf_world.idle_thread)) {
 	       printf("A threadlet has been lost! %p\n", n->data);
@@ -158,14 +158,14 @@ void lwsf_thread_entry(void) {
      if((lwsf_world.current == lwsf_world.idle_thread)) {
 	  lwsf_init_socket_servers();
 	  handler1 = (void*)lwsf_world.current->entry; 
-	  //printd("calling hook1\n");
+	  /*printd("calling hook1\n");*/
 	  handler1();
     
 	  while((th = LIST_GET_HEAD(&lwsf_world.blocked)) != NULL) {
 	       LIST_REMOVE_HEAD(&lwsf_world.blocked);
 	       th->state = STATE_READY;
 	       LIST_INSERT_TAIL(&lwsf_world.ready, th);
-	       //printd("Thread %s made ready\n", th->name);
+	       /*printd("Thread %s made ready\n", th->name);*/
 	  }
 	  SCHEDULE();
 	  /* this is now the idle loop */
@@ -271,8 +271,8 @@ out:
 
 void lwsf_thread_kill(struct lwsf_th *t) {
      if(t == lwsf_world.current) {
-	  LIST_REMOVE_ELEM(&lwsf_world.ready, t);
 	  struct msg *msg = lwsf_msg_alloc(sizeof(struct msg), KILL_THREAD); 
+	  LIST_REMOVE_ELEM(&lwsf_world.ready, t);
 	  msg->th=t;
 	  lwsf_msg_send((void**)&msg, lwsf_world.idle_thread); 
 	  printf("Oooh schedule!\n");
@@ -323,12 +323,10 @@ void lwsf_msg_send(void **_m, struct lwsf_th *dst) {
 
      if(dst->state == STATE_BLOCKED_MESSAGE) {
 	  printd("blocked!\n");
-	  //LIST_PRINT(&lwsf_world.blocked);
 	  printd("removed\n");
 	  LIST_REMOVE_ELEM(&lwsf_world.blocked, dst); 
 	  assert(dst->state <= STATE_BLOCKED);
 	  dst->state = STATE_READY;
-	  //LIST_PRINT(&lwsf_world.blocked);
 	  LIST_INSERT_TAIL(&lwsf_world.ready, dst);
 	  /* Yes! We need to call schedule */
 	  SCHEDULE();
@@ -360,7 +358,7 @@ void * lwsf_msg_recv(lwsf_msg_queue *m) {
 	  if(lwsf_world.current->state == STATE_READY) {
 	       LIST_REMOVE_HEAD(&lwsf_world.ready);
 	       LIST_INSERT_TAIL(&lwsf_world.blocked, lwsf_world.current); 
-	       //LIST_PRINT(&lwsf_world.blocked);
+	       /* LIST_PRINT(&lwsf_world.blocked); */
 	       lwsf_world.current->state = STATE_BLOCKED_MESSAGE;
 	       
 	       if(m != NULL) {
@@ -402,7 +400,6 @@ void lwsf_thread_stop(struct lwsf_th *t) {
 
 void lwsf_thread_yield(void) {
      printd("yield called\n");
-     //  LIST_REMOVE_ELEM(&lwsf_world.ready, lwsf_world.current);
      LIST_REMOVE_HEAD(&lwsf_world.ready); 
      LIST_INSERT_TAIL(&lwsf_world.ready, lwsf_world.current);
      if(lwsf_world.current != (struct lwsf_th*)(lwsf_world.ready.head)){ 
